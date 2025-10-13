@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "AI Content Capture",
+  "version": "1.0.0",
+  "description": "AI-Powered Chrome Extension for Local Content Capture, Categorization, and Search",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "contextMenus",
+    "sidePanel",
+    "scripting",
+    "desktopCapture"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "AI Content Capture"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "options_page": "src/options/index.html",
+  "commands": {
+    "capture-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "Capture selected content"
+    },
+    "capture-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "Capture entire page"
+    }
+  }
+}

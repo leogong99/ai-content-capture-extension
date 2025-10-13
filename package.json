@@ -1,0 +1,44 @@
+{
+  "name": "ai-content-capture-extension",
+  "version": "1.0.0",
+  "description": "AI-Powered Chrome Extension for Local Content Capture, Categorization, and Search",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "jest",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@types/chrome": "^0.0.254",
+    "fuse.js": "^7.0.0",
+    "html2canvas": "^1.4.1",
+    "lucide-react": "^0.294.0",
+    "openai": "^4.20.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/html2canvas": "^0.5.35",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@types/uuid": "^9.0.7",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8",
+    "vite-plugin-web-extension": "^4.1.0"
+  }
+}
