@@ -20,63 +20,73 @@ if (!contentScriptInitialized) {
     // Validate request structure
     if (!request || !request.action) {
       console.error('Invalid message received:', request);
+      sendResponse({ success: false, error: 'Invalid message structure' });
       return;
     }
 
-    // Send response to confirm message was received
-    sendResponse({ success: true, message: 'Content script is ready' });
-    
     console.log('Content script processing action:', request.action);
 
-  switch (request.action) {
-    case 'captureSelection':
-      // Get current selection and capture it
-      const selection = window.getSelection();
-      if (selection && selection.toString().trim()) {
-        const selectionData = {
-          text: selection.toString(),
-          title: document.title,
-          url: window.location.href
-        };
-        captureSelection(selectionData);
-      } else {
-        console.warn('No text selected for capture');
-        showNotification('Please select some text to capture', 'error');
+    try {
+      switch (request.action) {
+        case 'captureSelection':
+          // Get current selection and capture it
+          const selection = window.getSelection();
+          if (selection && selection.toString().trim()) {
+            const selectionData = {
+              text: selection.toString(),
+              title: document.title,
+              url: window.location.href
+            };
+            captureSelection(selectionData);
+            sendResponse({ success: true, message: 'Selection captured' });
+          } else {
+            console.warn('No text selected for capture');
+            showNotification('Please select some text to capture', 'error');
+            sendResponse({ success: false, error: 'No text selected' });
+          }
+          break;
+        case 'captureImage':
+          if (request.data && typeof request.data === 'object' && request.data.imageUrl) {
+            // Find the image element and get its alt text
+            const img = document.querySelector(`img[src="${request.data.imageUrl}"]`) as HTMLImageElement;
+            const imageData = {
+              imageUrl: request.data.imageUrl,
+              altText: img ? img.alt || '' : '',
+              title: document.title,
+              url: window.location.href
+            };
+            captureImage(imageData);
+            sendResponse({ success: true, message: 'Image captured' });
+          } else {
+            console.error('Invalid data for captureImage:', request.data);
+            sendResponse({ success: false, error: 'Invalid image data' });
+          }
+          break;
+        case 'capturePage':
+          // Get page content and capture it
+          const pageData = {
+            content: document.documentElement.outerHTML,
+            title: document.title,
+            url: window.location.href
+          };
+          capturePage(pageData);
+          sendResponse({ success: true, message: 'Page captured' });
+          break;
+        case 'captureScreenshot':
+          // Initiate screenshot capture
+          console.log('Content script: Starting screenshot capture...');
+          captureScreenshot();
+          sendResponse({ success: true, message: 'Screenshot capture initiated' });
+          break;
+        default:
+          console.warn('Unknown action received:', request.action);
+          sendResponse({ success: false, error: 'Unknown action' });
       }
-      break;
-    case 'captureImage':
-      if (request.data && typeof request.data === 'object' && request.data.imageUrl) {
-        // Find the image element and get its alt text
-        const img = document.querySelector(`img[src="${request.data.imageUrl}"]`) as HTMLImageElement;
-        const imageData = {
-          imageUrl: request.data.imageUrl,
-          altText: img ? img.alt || '' : '',
-          title: document.title,
-          url: window.location.href
-        };
-        captureImage(imageData);
-      } else {
-        console.error('Invalid data for captureImage:', request.data);
-      }
-      break;
-    case 'capturePage':
-      // Get page content and capture it
-      const pageData = {
-        content: document.documentElement.outerHTML,
-        title: document.title,
-        url: window.location.href
-      };
-      capturePage(pageData);
-      break;
-    case 'captureScreenshot':
-      // Initiate screenshot capture
-      console.log('Content script: Starting screenshot capture...');
-      captureScreenshot();
-      break;
-    default:
-      console.warn('Unknown action received:', request.action);
-  }
-});
+    } catch (error) {
+      console.error('Content script error:', error);
+      sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
 
 function captureSelection(data: { text: string; title: string; url: string }) {
   // Validate required fields

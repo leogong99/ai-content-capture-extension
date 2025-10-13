@@ -138,18 +138,16 @@ const SidePanel: React.FC = () => {
     window.open(entry.url, '_blank');
   };
 
-  const handleCapture = async (type: 'text' | 'image' | 'page') => {
+  const handleCapture = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab.id) return;
 
-      if (type === 'text') {
-        // For text capture, use the background script's captureSelection function
-        await chrome.runtime.sendMessage({ action: 'captureSelection', tabId: tab.id });
-      } else {
-        // For image and page capture, send directly to content script
-        await chrome.tabs.sendMessage(tab.id, { action: `capture${type.charAt(0).toUpperCase() + type.slice(1)}` });
-      }
+      // Use background script's capture functions for page capture
+      await chrome.runtime.sendMessage({ 
+        action: 'capturePage', 
+        tabId: tab.id 
+      });
     } catch (error) {
       console.error('Capture failed:', error);
     }

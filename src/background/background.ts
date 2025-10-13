@@ -136,6 +136,35 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           }
           break;
         
+        case 'captureImage':
+          try {
+            if (request.tabId) {
+              // For image capture, we need the image URL from the context menu
+              // This will be handled by the context menu click handler
+              sendResponse({ success: false, error: 'Image capture must be initiated from context menu' });
+            } else {
+              sendResponse({ success: false, error: 'No tab ID provided' });
+            }
+          } catch (error) {
+            console.error('Image capture failed:', error);
+            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Image capture failed' });
+          }
+          break;
+        
+        case 'capturePage':
+          try {
+            if (request.tabId) {
+              await capturePage(request.tabId);
+              sendResponse({ success: true });
+            } else {
+              sendResponse({ success: false, error: 'No tab ID provided' });
+            }
+          } catch (error) {
+            console.error('Page capture failed:', error);
+            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Page capture failed' });
+          }
+          break;
+        
         case 'clearAllData':
           try {
             await storageService.clearAllData();
