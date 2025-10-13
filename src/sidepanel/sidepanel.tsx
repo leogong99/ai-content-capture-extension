@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ContentEntry, SearchFilters } from '@/types';
+import { ContentEntry, SearchFilters, UserAgreement } from '@/types';
 import { ContentCard } from '@/components/ContentCard';
 import { SearchBar } from '@/components/SearchBar';
 import { CaptureButton } from '@/components/CaptureButton';
+import UserAgreementComponent from '@/components/UserAgreement';
 import { 
   Settings, 
   Download, 
   Upload, 
   Trash2, 
   BarChart3,
-
+  Shield,
   Grid,
   List
 } from 'lucide-react';
@@ -22,9 +23,11 @@ const SidePanel: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'category'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showAgreement, setShowAgreement] = useState(false);
 
   useEffect(() => {
     loadEntries();
+    checkUserAgreement();
     
     // Listen for new captures to update the dashboard live
     const handleMessage = (message: any) => {
@@ -58,6 +61,45 @@ const SidePanel: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const checkUserAgreement = async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getUserAgreement' });
+      if (response && response.success) {
+        const agreement = response.data;
+        if (!agreement || !agreement.hasAgreed) {
+          setShowAgreement(true);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check user agreement:', error);
+      // If we can't check, show the agreement to be safe
+      setShowAgreement(true);
+    }
+  };
+
+  const handleAgreementAgree = async () => {
+    try {
+      const agreement: UserAgreement = {
+        hasAgreed: true,
+        agreedAt: new Date().toISOString(),
+        version: '1.0'
+      };
+      
+      await chrome.runtime.sendMessage({ 
+        action: 'setUserAgreement', 
+        agreement 
+      });
+      
+      setShowAgreement(false);
+    } catch (error) {
+      console.error('Failed to save user agreement:', error);
+    }
+  };
+
+  const handleShowAgreement = () => {
+    setShowAgreement(true);
   };
 
   const handleSearch = async (query: string, filters: SearchFilters) => {
@@ -203,9 +245,23 @@ const SidePanel: React.FC = () => {
 
   return (
     <div className="sidepanel-container">
+      <UserAgreementComponent
+        isOpen={showAgreement}
+        onClose={() => setShowAgreement(false)}
+        onAgree={handleAgreementAgree}
+        showAsModal={true}
+      />
+      
       <div className="sidepanel-header">
         <h1>Content Dashboard</h1>
         <div className="header-actions">
+          <button
+            className="btn-icon"
+            onClick={handleShowAgreement}
+            title="View User Agreement"
+          >
+            <Shield size={16} />
+          </button>
           <button
             className="btn-icon"
             onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}

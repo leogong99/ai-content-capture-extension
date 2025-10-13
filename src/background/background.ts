@@ -146,6 +146,26 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           }
           break;
         
+        case 'getUserAgreement':
+          try {
+            const agreement = await storageService.getUserAgreement();
+            sendResponse({ success: true, data: agreement });
+          } catch (error) {
+            console.error('Get user agreement failed:', error);
+            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Get user agreement failed' });
+          }
+          break;
+        
+        case 'setUserAgreement':
+          try {
+            await storageService.setUserAgreement(request.agreement);
+            sendResponse({ success: true });
+          } catch (error) {
+            console.error('Set user agreement failed:', error);
+            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Set user agreement failed' });
+          }
+          break;
+        
         default:
           sendResponse({ success: false, error: 'Unknown action' });
       }
@@ -284,7 +304,11 @@ async function getSettings(): Promise<ExtensionSettings> {
       autoCleanup: true,
       exportFormat: 'json'
     },
-    theme: 'auto'
+    theme: 'auto',
+    userAgreement: {
+      hasAgreed: false,
+      version: '1.0'
+    }
   };
 
   const stored = await storageService.getConfig('settings');

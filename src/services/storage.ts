@@ -1,4 +1,4 @@
-import { ContentEntry, } from '@/types';
+import { ContentEntry, UserAgreement } from '@/types';
 
 const DB_NAME = 'AIContentCapture';
 const DB_VERSION = 1;
@@ -196,6 +196,14 @@ class StorageService {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
+  }
+
+  async getUserAgreement(): Promise<UserAgreement | null> {
+    return this.getConfig('userAgreement');
+  }
+
+  async setUserAgreement(agreement: UserAgreement): Promise<void> {
+    return this.setConfig('userAgreement', agreement);
   }
 }
 

@@ -260,3 +260,100 @@
     margin-left: 0;
   }
 }
+
+/* User Agreement Status Styles */
+.agreement-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.agreement-info {
+  flex: 1;
+}
+
+.agreement-info h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.agreement-info p {
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+  color: #666;
+  font-size: 14px;
+}
+
+.agreement-status-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: fit-content;
+}
+
+.status-badge.agreed {
+  background: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.status-badge.pending {
+  background: #fff3e0;
+  color: #f57c00;
+  border: 1px solid #ffcc02;
+}
+
+.agreement-date {
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Dark theme for agreement status */
+@media (prefers-color-scheme: dark) {
+  .agreement-status {
+    background: #2a2a2a;
+    border-color: #404040;
+  }
+
+  .agreement-info h3 {
+    color: #e0e0e0;
+  }
+
+  .agreement-info p {
+    color: #a0a0a0;
+  }
+
+  .status-badge.agreed {
+    background: #1b5e20;
+    color: #a5d6a7;
+    border-color: #4caf50;
+  }
+
+  .status-badge.pending {
+    background: #e65100;
+    color: #ffb74d;
+    border-color: #ff9800;
+  }
+
+  .agreement-date {
+    color: #a0a0a0;
+  }
+}

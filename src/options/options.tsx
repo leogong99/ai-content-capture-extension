@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ExtensionSettings, AIConfig, StorageConfig } from '@/types';
+import { ExtensionSettings, AIConfig, StorageConfig, UserAgreement } from '@/types';
+import UserAgreementComponent from '@/components/UserAgreement';
 import { 
-
   Brain, 
   Database, 
   Palette, 
@@ -12,7 +12,8 @@ import {
   Upload,
   Trash2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Shield
 } from 'lucide-react';
 
 const Options: React.FC = () => {
@@ -26,11 +27,16 @@ const Options: React.FC = () => {
       autoCleanup: true,
       exportFormat: 'json'
     },
-    theme: 'auto'
+    theme: 'auto',
+    userAgreement: {
+      hasAgreed: false,
+      version: '1.0'
+    }
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showAgreement, setShowAgreement] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -76,8 +82,39 @@ const Options: React.FC = () => {
           autoCleanup: true,
           exportFormat: 'json'
         },
-        theme: 'auto'
+        theme: 'auto',
+        userAgreement: {
+          hasAgreed: false,
+          version: '1.0'
+        }
       });
+    }
+  };
+
+  const handleShowAgreement = () => {
+    setShowAgreement(true);
+  };
+
+  const handleAgreementAgree = async () => {
+    try {
+      const agreement: UserAgreement = {
+        hasAgreed: true,
+        agreedAt: new Date().toISOString(),
+        version: '1.0'
+      };
+      
+      setSettings(prev => ({
+        ...prev,
+        userAgreement: agreement
+      }));
+      
+      setShowAgreement(false);
+      setMessage({ type: 'success', text: 'User agreement accepted!' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Failed to save user agreement:', error);
+      setMessage({ type: 'error', text: 'Failed to save user agreement' });
+      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -164,6 +201,13 @@ const Options: React.FC = () => {
 
   return (
     <div className="options-container">
+      <UserAgreementComponent
+        isOpen={showAgreement}
+        onClose={() => setShowAgreement(false)}
+        onAgree={handleAgreementAgree}
+        showAsModal={true}
+      />
+      
       <div className="options-header">
         <h1>AI Content Capture Settings</h1>
         <div className="header-actions">
@@ -334,6 +378,44 @@ const Options: React.FC = () => {
               <p className="setting-description">
                 Choose your preferred theme. Auto will follow your system settings.
               </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="section-header">
+            <Shield size={20} />
+            <h2>User Agreement & Privacy</h2>
+          </div>
+          <div className="section-content">
+            <div className="setting-group">
+              <div className="agreement-status">
+                <div className="agreement-info">
+                  <h3>Privacy & Data Usage</h3>
+                  <p>
+                    This extension respects your privacy. All data is stored locally on your device. 
+                    No personal information is collected or transmitted to external servers unless you 
+                    choose to use OpenAI features with your own API key.
+                  </p>
+                  <div className="agreement-status-indicator">
+                    <span className={`status-badge ${settings.userAgreement.hasAgreed ? 'agreed' : 'pending'}`}>
+                      {settings.userAgreement.hasAgreed ? 'Agreed' : 'Pending Agreement'}
+                    </span>
+                    {settings.userAgreement.hasAgreed && settings.userAgreement.agreedAt && (
+                      <span className="agreement-date">
+                        Agreed on: {new Date(settings.userAgreement.agreedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleShowAgreement}
+                >
+                  <Shield size={16} />
+                  {settings.userAgreement.hasAgreed ? 'View Agreement' : 'Review Agreement'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

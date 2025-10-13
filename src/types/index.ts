@@ -38,10 +38,17 @@ export interface StorageConfig {
   exportFormat: 'json' | 'csv';
 }
 
+export interface UserAgreement {
+  hasAgreed: boolean;
+  agreedAt?: string;
+  version: string;
+}
+
 export interface ExtensionSettings {
   ai: AIConfig;
   storage: StorageConfig;
   theme: 'light' | 'dark' | 'auto';
+  userAgreement: UserAgreement;
 }
 
 export interface CaptureRequest {
