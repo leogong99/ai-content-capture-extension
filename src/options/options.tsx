@@ -205,7 +205,8 @@ const Options: React.FC = () => {
         isOpen={showAgreement}
         onClose={() => setShowAgreement(false)}
         onAgree={handleAgreementAgree}
-        showAsModal={true}
+        showAsModal={false}
+        showAsTopPanel={true}
       />
       
       <div className="options-header">

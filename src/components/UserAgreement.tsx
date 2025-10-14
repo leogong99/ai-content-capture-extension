@@ -6,13 +6,15 @@ interface UserAgreementProps {
   onClose: () => void;
   onAgree: () => void;
   showAsModal?: boolean;
+  showAsTopPanel?: boolean;
 }
 
 const UserAgreement: React.FC<UserAgreementProps> = ({ 
   isOpen, 
   onClose, 
   onAgree, 
-  showAsModal = true 
+  showAsModal = true,
+  showAsTopPanel = false
 }) => {
   const [hasRead, setHasRead] = useState(false);
 
@@ -116,6 +118,25 @@ const UserAgreement: React.FC<UserAgreementProps> = ({
       </div>
     </div>
   );
+
+  if (showAsTopPanel) {
+    return (
+      <div className="user-agreement-top-panel">
+        <div className="top-panel-header">
+          <div className="top-panel-title">
+            <Shield size={20} />
+            <span>User Agreement & Privacy Notice</span>
+          </div>
+          <button className="top-panel-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="top-panel-content">
+          <AgreementContent />
+        </div>
+      </div>
+    );
+  }
 
   if (showAsModal) {
     return (

@@ -312,12 +312,16 @@ async function processCaptureRequest(request: CaptureRequest): Promise<ContentEn
   await storageService.saveEntry(entry);
 
   // Notify sidepanel about new content capture
-  try {
-    chrome.runtime.sendMessage({ action: 'contentCaptured', data: entry });
-  } catch (error) {
-    // Sidepanel might not be open, ignore error
-    console.log('Could not notify sidepanel:', error);
-  }
+  // Use a promise-based approach to handle the case where no listener exists
+  chrome.runtime.sendMessage({ action: 'contentCaptured', data: entry })
+    .then(() => {
+      // Message was received by a listener
+      console.log('Content capture notification sent successfully');
+    })
+    .catch(() => {
+      // No listener available, this is normal if sidepanel/popup is not open
+      console.log('No listener for contentCaptured message (this is normal if UI is not open)');
+    });
 
   return entry;
 }
