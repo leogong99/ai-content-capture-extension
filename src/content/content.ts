@@ -1,17 +1,37 @@
 // Content script for capturing content from web pages
+// Wrap everything in an IIFE to prevent global variable conflicts
 
-interface CaptureData {
-  type: 'text' | 'image' | 'page';
-  content: string;
-  title: string;
-  url: string;
-  metadata?: Record<string, any>;
-}
+(function() {
+  'use strict';
 
-// Prevent multiple listeners from being added
-let contentScriptInitialized = false;
-if (!contentScriptInitialized) {
-  contentScriptInitialized = true;
+  // Check if content script is already initialized to prevent multiple injections
+  if ((window as any).aiContentCaptureInitialized) {
+    console.log('AI Content Capture: Content script already initialized, skipping...');
+    return;
+  }
+  (window as any).aiContentCaptureInitialized = true;
+
+  interface CaptureData {
+    type: 'text' | 'image' | 'page';
+    content: string;
+    title: string;
+    url: string;
+    metadata?: Record<string, any>;
+  }
+  
+  // Clean up any existing overlays that might interfere with page interaction
+  const existingOverlay = document.getElementById('screenshot-overlay');
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
+  
+  // Remove any existing selection highlights
+  const existingHighlights = document.querySelectorAll('span[style*="background-color: rgba(33, 150, 243, 0.2)"]');
+  existingHighlights.forEach(highlight => {
+    if (highlight.parentNode) {
+      highlight.parentNode.replaceChild(document.createTextNode(highlight.textContent || ''), highlight);
+    }
+  });
   
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
@@ -583,33 +603,9 @@ function showNotification(message: string, type: 'success' | 'error' = 'success'
       notification.parentNode.removeChild(notification);
     }
   }, 3000);
-}
-
-// Add visual feedback for selected text
-document.addEventListener('mouseup', () => {
-  const selection = window.getSelection();
-  if (selection && selection.toString().trim()) {
-    // Add a subtle highlight to show text can be captured
-    const range = selection.getRangeAt(0);
-    const span = document.createElement('span');
-    span.style.cssText = `
-      background-color: rgba(33, 150, 243, 0.2);
-      border-radius: 2px;
-      transition: background-color 0.2s;
-    `;
-    
-    try {
-      range.surroundContents(span);
-      
-      // Remove highlight after a short delay
-      setTimeout(() => {
-        if (span.parentNode) {
-          span.parentNode.replaceChild(document.createTextNode(span.textContent || ''), span);
-        }
-      }, 1000);
-    } catch (e) {
-      // Ignore errors if we can't surround the selection
-    }
   }
-  });
-}
+
+  // Note: Removed global mouseup listener that was interfering with text selection
+  // The extension should not interfere with normal user interactions on web pages
+
+})(); // End of IIFE
