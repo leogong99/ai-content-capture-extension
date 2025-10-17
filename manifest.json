@@ -8,8 +8,7 @@
     "activeTab",
     "contextMenus",
     "sidePanel",
-    "scripting",
-    "desktopCapture"
+    "scripting"
   ],
   "host_permissions": [
     "<all_urls>"
