@@ -237,6 +237,31 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Custom AI model training
 - [ ] Plugin system for extensions
 
+## 📋 User Agreement & Privacy Notice
+
+### Data Collection & Storage
+- **No Data Collection:** This extension does not collect, store, or transmit any personal data from your browsing activity.
+- **Local Storage Only:** All captured content is stored locally on your device using your browser's storage system.
+- **No Tracking:** We do not track your browsing habits, visited websites, or any personal information.
+- **No Analytics:** No usage analytics or telemetry data is collected.
+
+### OpenAI API Usage (Optional)
+- **Optional Feature:** AI processing is completely optional and only works if you provide your own OpenAI API key.
+- **Your API Key:** Your OpenAI API key is stored locally and never shared with us or any third parties.
+- **Direct Communication:** When using AI features, your captured content is sent directly to OpenAI's servers using your API key.
+- **OpenAI's Privacy:** Any data sent to OpenAI is subject to their privacy policy and terms of service.
+- **No AI by Default:** If you don't provide an API key, no data leaves your device.
+
+### Important Disclaimers
+- **No Responsibility:** We are not responsible for any data loss, privacy breaches, or security issues.
+- **Use at Your Own Risk:** This extension is provided "as is" without any warranties.
+- **Sensitive Information:** Do not use this extension to capture sensitive, confidential, or personal information.
+- **Local Responsibility:** You are responsible for the security and privacy of your local data.
+- **API Costs:** If you use OpenAI features, you are responsible for any API costs incurred.
+
+### Your Consent
+By using this extension, you acknowledge that you have read and understood this agreement, and you agree to use this extension in accordance with these terms.
+
 ---
 
 **Made with ❤️ for content creators, researchers, and knowledge workers**
