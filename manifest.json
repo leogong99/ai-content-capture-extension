@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "description": "AI-Powered Chrome Extension for Local Content Capture, Categorization, and Search",
   "permissions": [
-    "storage",
     "activeTab",
     "contextMenus",
     "sidePanel",

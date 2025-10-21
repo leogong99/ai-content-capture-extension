@@ -208,3 +208,4 @@ AI Content Capture is a powerful Chrome extension designed to revolutionize how 
 ---
 
 **Transform your browsing experience into an intelligent knowledge management system with AI Content Capture - where privacy meets intelligence.**
+
