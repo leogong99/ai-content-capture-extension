@@ -3,6 +3,7 @@
 ## Quick Start
 
 1. **Build the extension:**
+
    ```bash
    npm install
    npm run build
@@ -44,25 +45,29 @@ npm run format
 ## Features
 
 ### Content Capture
+
 - **Text Selection**: Right-click → "Capture Selection"
-- **Images**: Right-click on image → "Capture Image"  
+- **Images**: Right-click on image → "Capture Image"
 - **Full Page**: Right-click → "Capture Page"
-- **Keyboard Shortcuts**: 
+- **Keyboard Shortcuts**:
   - `Ctrl+Shift+C` (Cmd+Shift+C on Mac) - Capture selection
   - `Ctrl+Shift+P` (Cmd+Shift+P on Mac) - Capture page
 
 ### AI Processing
+
 - Automatic categorization and tagging
 - Local processing (default) or OpenAI API
 - Customizable AI settings in options
 
 ### Search & Organization
+
 - Full-text search across all content
 - Filter by category, type, date, tags
 - Sort by date, title, or category
 - Export/import data
 
 ### Privacy
+
 - All data stored locally
 - No external data transmission (except OpenAI if configured)
 - Full control over your data
@@ -70,16 +75,19 @@ npm run format
 ## Troubleshooting
 
 ### Extension not loading
+
 - Make sure you selected the `dist` folder (not the root project folder)
 - Check that "Developer mode" is enabled
 - Try refreshing the extensions page
 
 ### Content not capturing
+
 - Make sure the extension has permission to access the current site
 - Try refreshing the page after installing
 - Check the browser console for errors
 
 ### AI features not working
+
 - Go to extension options to configure AI settings
 - For OpenAI: Enter a valid API key
 - For local processing: No configuration needed

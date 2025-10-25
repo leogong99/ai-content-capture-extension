@@ -1,12 +1,15 @@
-import React from 'react';
-import { Globe } from 'lucide-react';
+import React from 'react'
+import { Globe } from 'lucide-react'
 
 interface CaptureButtonProps {
-  onCapture: () => void;
-  disabled?: boolean;
+  onCapture: () => void
+  disabled?: boolean
 }
 
-export const CaptureButton: React.FC<CaptureButtonProps> = ({ onCapture, disabled = false }) => {
+export const CaptureButton: React.FC<CaptureButtonProps> = ({
+  onCapture,
+  disabled = false,
+}) => {
   return (
     <div className="capture-buttons">
       <button
@@ -19,5 +22,5 @@ export const CaptureButton: React.FC<CaptureButtonProps> = ({ onCapture, disable
         <span>Capture Page</span>
       </button>
     </div>
-  );
-};
+  )
+}

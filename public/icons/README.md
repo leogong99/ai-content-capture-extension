@@ -18,6 +18,7 @@ This directory should contain the following icon files:
 ## Creating Icons
 
 You can create these icons using:
+
 - Design tools (Figma, Sketch, Adobe Illustrator)
 - Online icon generators
 - AI image generation tools

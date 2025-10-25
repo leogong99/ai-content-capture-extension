@@ -1,43 +1,43 @@
-import React, { useState } from 'react';
-import { Search, Filter, X } from 'lucide-react';
-import { SearchFilters } from '@/types';
+import React, { useState } from 'react'
+import { Search, Filter, X } from 'lucide-react'
+import { SearchFilters } from '@/types'
 
 interface SearchBarProps {
-  onSearch: (query: string, filters: SearchFilters) => void;
-  onClear: () => void;
-  placeholder?: string;
+  onSearch: (query: string, filters: SearchFilters) => void
+  onClear: () => void
+  placeholder?: string
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ 
-  onSearch, 
-  onClear, 
-  placeholder = "Search captured content..." 
+export const SearchBar: React.FC<SearchBarProps> = ({
+  onSearch,
+  onClear,
+  placeholder = 'Search captured content...',
 }) => {
-  const [query, setQuery] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<SearchFilters>({});
+  const [query, setQuery] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState<SearchFilters>({})
 
   const handleSearch = () => {
-    onSearch(query, filters);
-  };
+    onSearch(query, filters)
+  }
 
   const handleClear = () => {
-    setQuery('');
-    setFilters({});
-    onClear();
-  };
+    setQuery('')
+    setFilters({})
+    onClear()
+  }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSearch();
+      handleSearch()
     }
-  };
+  }
 
-  const updateFilter = (key: keyof SearchFilters, value: any) => {
-    const newFilters = { ...filters, [key]: value };
-    setFilters(newFilters);
-    onSearch(query, newFilters);
-  };
+  const updateFilter = (key: keyof SearchFilters, value: string | string[] | undefined) => {
+    const newFilters = { ...filters, [key]: value }
+    setFilters(newFilters)
+    onSearch(query, newFilters)
+  }
 
   return (
     <div className="search-container">
@@ -47,7 +47,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           <input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={e => setQuery(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder={placeholder}
             className="search-input"
@@ -62,7 +62,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             </button>
           )}
         </div>
-        
+
         <div className="search-actions">
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -71,11 +71,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           >
             <Filter size={16} />
           </button>
-          <button
-            onClick={handleSearch}
-            className="btn-search"
-            title="Search"
-          >
+          <button onClick={handleSearch} className="btn-search" title="Search">
             Search
           </button>
         </div>
@@ -87,7 +83,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <label>Category:</label>
             <select
               value={filters.category || ''}
-              onChange={(e) => updateFilter('category', e.target.value || undefined)}
+              onChange={e =>
+                updateFilter('category', e.target.value || undefined)
+              }
             >
               <option value="">All Categories</option>
               <option value="Technology">Technology</option>
@@ -105,7 +103,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <label>Type:</label>
             <select
               value={filters.type || ''}
-              onChange={(e) => updateFilter('type', e.target.value || undefined)}
+              onChange={e => updateFilter('type', e.target.value || undefined)}
             >
               <option value="">All Types</option>
               <option value="text">Text</option>
@@ -119,7 +117,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <input
               type="date"
               value={filters.dateFrom || ''}
-              onChange={(e) => updateFilter('dateFrom', e.target.value || undefined)}
+              onChange={e =>
+                updateFilter('dateFrom', e.target.value || undefined)
+              }
             />
           </div>
 
@@ -128,7 +128,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <input
               type="date"
               value={filters.dateTo || ''}
-              onChange={(e) => updateFilter('dateTo', e.target.value || undefined)}
+              onChange={e =>
+                updateFilter('dateTo', e.target.value || undefined)
+              }
             />
           </div>
 
@@ -137,12 +139,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <input
               type="text"
               value={filters.tags?.join(', ') || ''}
-              onChange={(e) => {
+              onChange={e => {
                 const tags = e.target.value
                   .split(',')
                   .map(tag => tag.trim())
-                  .filter(tag => tag.length > 0);
-                updateFilter('tags', tags.length > 0 ? tags : undefined);
+                  .filter(tag => tag.length > 0)
+                updateFilter('tags', tags.length > 0 ? tags : undefined)
               }}
               placeholder="tag1, tag2, tag3"
             />
@@ -150,5 +152,5 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         </div>
       )}
     </div>
-  );
-};
+  )
+}

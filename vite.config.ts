@@ -12,7 +12,7 @@ export default defineConfig({
       writeBundle() {
         // Copy manifest.json
         copyFileSync('manifest.json', 'dist/manifest.json')
-        
+
         // Copy icons directory
         if (existsSync('public/icons')) {
           if (!existsSync('dist/icons')) {
@@ -26,8 +26,8 @@ export default defineConfig({
             }
           })
         }
-      }
-    }
+      },
+    },
   ],
   resolve: {
     alias: {
@@ -45,7 +45,7 @@ export default defineConfig({
         background: resolve(__dirname, 'src/background/background.ts'),
       },
       output: {
-        entryFileNames: (chunkInfo) => {
+        entryFileNames: chunkInfo => {
           if (chunkInfo.name === 'content' || chunkInfo.name === 'background') {
             return '[name].js'
           }
@@ -53,8 +53,8 @@ export default defineConfig({
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
-        inlineDynamicImports: false
-      }
+        inlineDynamicImports: false,
+      },
     },
   },
 })

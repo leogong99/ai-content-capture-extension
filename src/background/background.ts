@@ -1,219 +1,306 @@
-import { storageService } from '@/services/storage';
-import { aiService } from '@/services/ai';
-import { ContentEntry, CaptureRequest, ExtensionSettings } from '@/types';
+import { storageService } from '@/services/storage'
+import { aiService } from '@/services/ai'
+import { ContentEntry, CaptureRequest, ExtensionSettings } from '@/types'
 
 // Initialize storage and AI services
 chrome.runtime.onInstalled.addListener(async () => {
-  await storageService.init();
-  
+  await storageService.init()
+
   // Set up context menu
   chrome.contextMenus.create({
     id: 'capture-selection',
     title: 'Capture Selection',
-    contexts: ['selection']
-  });
+    contexts: ['selection'],
+  })
 
   chrome.contextMenus.create({
     id: 'capture-image',
     title: 'Capture Image',
-    contexts: ['image']
-  });
-
+    contexts: ['image'],
+  })
 
   chrome.contextMenus.create({
     id: 'capture-page',
     title: 'Capture Page',
-    contexts: ['page']
-  });
+    contexts: ['page'],
+  })
 
   // Set up side panel
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-});
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+})
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (!tab?.id) return;
+  if (!tab?.id) return
 
   try {
     switch (info.menuItemId) {
       case 'capture-selection':
-        await captureSelection(tab.id);
-        break;
+        await captureSelection(tab.id)
+        break
       case 'capture-image':
-        await captureImage(tab.id, info.srcUrl!);
-        break;
+        await captureImage(tab.id, info.srcUrl!)
+        break
       case 'capture-page':
-        await capturePage(tab.id);
-        break;
+        await capturePage(tab.id)
+        break
     }
   } catch (error) {
-    console.error('Capture failed:', error);
+    console.error('Capture failed:', error)
   }
-});
+})
 
 // Handle keyboard shortcuts
 chrome.commands.onCommand.addListener(async (command, tab) => {
-  if (!tab?.id) return;
+  if (!tab?.id) return
 
   try {
     switch (command) {
       case 'capture-selection':
-        await captureSelection(tab.id);
-        break;
+        await captureSelection(tab.id)
+        break
       case 'capture-page':
-        await capturePage(tab.id);
-        break;
+        await capturePage(tab.id)
+        break
     }
   } catch (error) {
-    console.error('Command failed:', error);
+    console.error('Command failed:', error)
   }
-});
+})
 
 // Handle messages from content script and popup
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
-  console.log('Background script received message:', request);
-  
+  console.log('Background script received message:', request)
+
   // Handle async operations properly
-  (async () => {
+  ;(async () => {
     try {
       switch (request.action) {
-        case 'captureContent':
-          const result = await processCaptureRequest(request.data);
-          sendResponse({ success: true, data: result });
-          break;
-        
-        case 'getEntries':
-          console.log('Getting entries from storage...');
-          const entries = await storageService.getAllEntries();
-          console.log('Retrieved entries:', entries);
-          sendResponse({ success: true, data: entries });
-          break;
-        
-        case 'searchEntries':
+        case 'captureContent': {
+          const result = await processCaptureRequest(request.data)
+          sendResponse({ success: true, data: result })
+          break
+        }
+
+        case 'getEntries': {
+          console.log('Getting entries from storage...')
+          const entries = await storageService.getAllEntries()
+          console.log('Retrieved entries:', entries)
+          sendResponse({ success: true, data: entries })
+          break
+        }
+
+        case 'getEntriesPaginated': {
+          console.log('Getting paginated entries from storage...')
+          const {
+            page = 1,
+            pageSize = 50,
+            sortBy = 'date',
+            sortOrder = 'desc',
+          } = request
+          const paginatedResult = await storageService.getEntriesPaginated(
+            page,
+            pageSize,
+            sortBy,
+            sortOrder
+          )
+          console.log('Retrieved paginated entries:', paginatedResult)
+          sendResponse({ success: true, data: paginatedResult })
+          break
+        }
+
+        case 'getRecentEntries': {
+          console.log('Getting recent entries from storage...')
+          const { limit = 10 } = request
+          const recentEntries = await storageService.getRecentEntries(limit)
+          console.log('Retrieved recent entries:', recentEntries)
+          sendResponse({ success: true, data: recentEntries })
+          break
+        }
+
+        case 'searchEntries': {
+          const { query, filters, page = 1, pageSize = 50 } = request
           const searchResults = await storageService.searchEntries(
-            request.query,
-            request.filters
-          );
-          sendResponse({ success: true, data: searchResults });
-          break;
-        
-        case 'deleteEntry':
-          await storageService.deleteEntry(request.id);
-          sendResponse({ success: true });
-          break;
-        
-        case 'getSettings':
-          const settings = await getSettings();
-          sendResponse({ success: true, data: settings });
-          break;
-        
-        case 'updateSettings':
-          await updateSettings(request.settings);
-          sendResponse({ success: true });
-          break;
-        
-        case 'exportData':
-          const exportData = await storageService.exportData();
-          sendResponse({ success: true, data: exportData });
-          break;
-        
-        case 'importData':
-          await storageService.importData(request.data);
-          sendResponse({ success: true });
-          break;
-        
-        case 'captureSelection':
+            query,
+            filters,
+            page,
+            pageSize
+          )
+          sendResponse({ success: true, data: searchResults })
+          break
+        }
+
+
+        case 'saveEntry': {
+          await storageService.saveEntry(request.entry)
+          sendResponse({ success: true })
+          break
+        }
+
+        case 'deleteEntry': {
+          await storageService.deleteEntry(request.id)
+          sendResponse({ success: true })
+          break
+        }
+
+        case 'getSettings': {
+          const settings = await getSettings()
+          sendResponse({ success: true, data: settings })
+          break
+        }
+
+        case 'updateSettings': {
+          await updateSettings(request.settings)
+          sendResponse({ success: true })
+          break
+        }
+
+        case 'exportData': {
+          const exportData = await storageService.exportData()
+          sendResponse({ success: true, data: exportData })
+          break
+        }
+
+        case 'importData': {
+          await storageService.importData(request.data)
+          sendResponse({ success: true })
+          break
+        }
+
+        case 'captureSelection': {
           try {
             if (request.tabId) {
-              await captureSelection(request.tabId);
-              sendResponse({ success: true });
+              await captureSelection(request.tabId)
+              sendResponse({ success: true })
             } else {
-              sendResponse({ success: false, error: 'No tab ID provided' });
+              sendResponse({ success: false, error: 'No tab ID provided' })
             }
           } catch (error) {
-            console.error('Text capture failed:', error);
-            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Text capture failed' });
+            console.error('Text capture failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error ? error.message : 'Text capture failed',
+            })
           }
-          break;
-        
-        case 'captureImage':
+          break
+        }
+
+        case 'captureImage': {
           try {
             if (request.tabId) {
               // For image capture, we need the image URL from the context menu
               // This will be handled by the context menu click handler
-              sendResponse({ success: false, error: 'Image capture must be initiated from context menu' });
+              sendResponse({
+                success: false,
+                error: 'Image capture must be initiated from context menu',
+              })
             } else {
-              sendResponse({ success: false, error: 'No tab ID provided' });
+              sendResponse({ success: false, error: 'No tab ID provided' })
             }
           } catch (error) {
-            console.error('Image capture failed:', error);
-            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Image capture failed' });
+            console.error('Image capture failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error ? error.message : 'Image capture failed',
+            })
           }
-          break;
-        
-        case 'capturePage':
+          break
+        }
+
+        case 'capturePage': {
           try {
             if (request.tabId) {
-              await capturePage(request.tabId);
-              sendResponse({ success: true });
+              await capturePage(request.tabId)
+              sendResponse({ success: true })
             } else {
-              sendResponse({ success: false, error: 'No tab ID provided' });
+              sendResponse({ success: false, error: 'No tab ID provided' })
             }
           } catch (error) {
-            console.error('Page capture failed:', error);
-            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Page capture failed' });
+            console.error('Page capture failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error ? error.message : 'Page capture failed',
+            })
           }
-          break;
-        
-        case 'clearAllData':
+          break
+        }
+
+        case 'clearAllData': {
           try {
-            await storageService.clearAllData();
-            sendResponse({ success: true });
+            await storageService.clearAllData()
+            sendResponse({ success: true })
           } catch (error) {
-            console.error('Clear all data failed:', error);
-            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Clear all data failed' });
+            console.error('Clear all data failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Clear all data failed',
+            })
           }
-          break;
-        
-        case 'getUserAgreement':
+          break
+        }
+
+        case 'getUserAgreement': {
           try {
-            const agreement = await storageService.getUserAgreement();
-            sendResponse({ success: true, data: agreement });
+            const agreement = await storageService.getUserAgreement()
+            sendResponse({ success: true, data: agreement })
           } catch (error) {
-            console.error('Get user agreement failed:', error);
-            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Get user agreement failed' });
+            console.error('Get user agreement failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Get user agreement failed',
+            })
           }
-          break;
-        
-        case 'setUserAgreement':
+          break
+        }
+
+        case 'setUserAgreement': {
           try {
-            await storageService.setUserAgreement(request.agreement);
-            sendResponse({ success: true });
+            await storageService.setUserAgreement(request.agreement)
+            sendResponse({ success: true })
           } catch (error) {
-            console.error('Set user agreement failed:', error);
-            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Set user agreement failed' });
+            console.error('Set user agreement failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Set user agreement failed',
+            })
           }
-          break;
-        
+          break
+        }
+
         default:
-          sendResponse({ success: false, error: 'Unknown action' });
+          sendResponse({ success: false, error: 'Unknown action' })
       }
     } catch (error) {
-      console.error('Message handler error:', error);
-      sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      console.error('Message handler error:', error)
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
     }
-  })();
-  
-  return true; // Keep message channel open for async response
-});
+  })()
+
+  return true // Keep message channel open for async response
+})
 
 async function captureSelection(tabId: number): Promise<void> {
   try {
     // First, ensure content script is injected
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
-      files: ['content.js']
-    });
+      files: ['content.js'],
+    })
 
     // Then send message to content script
     await chrome.tabs.sendMessage(tabId, {
@@ -221,11 +308,11 @@ async function captureSelection(tabId: number): Promise<void> {
       data: {
         text: '', // Will be filled by content script
         title: '', // Will be filled by content script
-        url: '' // Will be filled by content script
-      }
-    });
+        url: '', // Will be filled by content script
+      },
+    })
   } catch (error) {
-    console.error('Failed to capture selection:', error);
+    console.error('Failed to capture selection:', error)
   }
 }
 
@@ -234,8 +321,8 @@ async function captureImage(tabId: number, imageUrl: string): Promise<void> {
     // First, ensure content script is injected
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
-      files: ['content.js']
-    });
+      files: ['content.js'],
+    })
 
     // Then send message to content script
     await chrome.tabs.sendMessage(tabId, {
@@ -244,22 +331,21 @@ async function captureImage(tabId: number, imageUrl: string): Promise<void> {
         imageUrl: imageUrl,
         altText: '', // Will be filled by content script
         title: '', // Will be filled by content script
-        url: '' // Will be filled by content script
-      }
-    });
+        url: '', // Will be filled by content script
+      },
+    })
   } catch (error) {
-    console.error('Failed to capture image:', error);
+    console.error('Failed to capture image:', error)
   }
 }
-
 
 async function capturePage(tabId: number): Promise<void> {
   try {
     // First, ensure content script is injected
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
-      files: ['content.js']
-    });
+      files: ['content.js'],
+    })
 
     // Then send message to content script
     await chrome.tabs.sendMessage(tabId, {
@@ -267,35 +353,30 @@ async function capturePage(tabId: number): Promise<void> {
       data: {
         content: '', // Will be filled by content script
         title: '', // Will be filled by content script
-        url: '' // Will be filled by content script
-      }
-    });
+        url: '', // Will be filled by content script
+      },
+    })
   } catch (error) {
-    console.error('Failed to capture page:', error);
+    console.error('Failed to capture page:', error)
   }
 }
 
-async function processCaptureRequest(request: CaptureRequest): Promise<ContentEntry> {
-  // Get AI settings
-  const settings = await getSettings();
-  await aiService.init(settings.ai);
-
-  // Process content with AI
-  const aiResult = await aiService.processContent(request.content, request.type);
-
-  // Create content entry
+async function processCaptureRequest(
+  request: CaptureRequest
+): Promise<ContentEntry> {
+  // Create content entry with basic processing (no AI in service worker)
   const entry: ContentEntry = {
     id: crypto.randomUUID(),
     title: request.title,
     url: request.url,
     content: request.content,
-    tags: aiResult.tags,
-    summary: aiResult.summary,
-    category: aiResult.category,
+    tags: ['general'], // Basic tag, will be enhanced by UI
+    summary: request.content.substring(0, 100) + (request.content.length > 100 ? '...' : ''), // Basic summary
+    category: 'General', // Basic category, will be enhanced by UI
     createdAt: new Date().toISOString(),
     type: request.type,
-    metadata: request.metadata
-  };
+    metadata: request.metadata,
+  }
 
   // Debug logging for image entries
   if (request.type === 'image') {
@@ -304,51 +385,54 @@ async function processCaptureRequest(request: CaptureRequest): Promise<ContentEn
       title: entry.title,
       contentLength: entry.content.length,
       metadataImageUrl: entry.metadata?.imageUrl?.length,
-      type: entry.type
-    });
+      type: entry.type,
+    })
   }
 
   // Save to storage
-  await storageService.saveEntry(entry);
+  await storageService.saveEntry(entry)
 
   // Notify sidepanel about new content capture
   // Use a promise-based approach to handle the case where no listener exists
-  chrome.runtime.sendMessage({ action: 'contentCaptured', data: entry })
+  chrome.runtime
+    .sendMessage({ action: 'contentCaptured', data: entry })
     .then(() => {
       // Message was received by a listener
-      console.log('Content capture notification sent successfully');
+      console.log('Content capture notification sent successfully')
     })
     .catch(() => {
       // No listener available, this is normal if sidepanel/popup is not open
-      console.log('No listener for contentCaptured message (this is normal if UI is not open)');
-    });
+      console.log(
+        'No listener for contentCaptured message (this is normal if UI is not open)'
+      )
+    })
 
-  return entry;
+  return entry
 }
 
 async function getSettings(): Promise<ExtensionSettings> {
   const defaultSettings: ExtensionSettings = {
     ai: {
       provider: 'local',
-      enabled: true
+      enabled: true,
     },
     storage: {
-      maxEntries: 1000,
-      autoCleanup: true,
-      exportFormat: 'json'
+      maxEntries: 10000, // Increased default limit
+      autoCleanup: false, // Disabled by default to keep all records
+      exportFormat: 'json',
     },
     theme: 'auto',
     userAgreement: {
       hasAgreed: false,
-      version: '1.0'
-    }
-  };
+      version: '1.0',
+    },
+  }
 
-  const stored = await storageService.getConfig('settings');
-  return stored || defaultSettings;
+  const stored = await storageService.getConfig('settings')
+  return (stored as ExtensionSettings) || defaultSettings
 }
 
 async function updateSettings(settings: ExtensionSettings): Promise<void> {
-  await storageService.setConfig('settings', settings);
-  await aiService.init(settings.ai);
+  await storageService.setConfig('settings', settings)
+  await aiService.init(settings.ai)
 }

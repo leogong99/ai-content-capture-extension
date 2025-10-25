@@ -1,204 +1,234 @@
 // Content script for capturing content from web pages
 // Wrap everything in an IIFE to prevent global variable conflicts
 
-(function() {
-  'use strict';
+(function () {
+  'use strict'
 
   // Check if content script is already initialized to prevent multiple injections
-  if ((window as any).aiContentCaptureInitialized) {
-    console.log('AI Content Capture: Content script already initialized, skipping...');
-    return;
+  if ((window as Window & { aiContentCaptureInitialized?: boolean }).aiContentCaptureInitialized) {
+    console.log(
+      'AI Content Capture: Content script already initialized, skipping...'
+    )
+    return
   }
-  (window as any).aiContentCaptureInitialized = true;
+  (window as Window & { aiContentCaptureInitialized?: boolean }).aiContentCaptureInitialized = true
 
   interface CaptureData {
-    type: 'text' | 'image' | 'page';
-    content: string;
-    title: string;
-    url: string;
-    metadata?: Record<string, any>;
+    type: 'text' | 'image' | 'page'
+    content: string
+    title: string
+    url: string
+    metadata?: Record<string, unknown>
   }
-  
+
   // Clean up any existing overlays that might interfere with page interaction
-  const existingOverlay = document.getElementById('screenshot-overlay');
+  const existingOverlay = document.getElementById('screenshot-overlay')
   if (existingOverlay) {
-    existingOverlay.remove();
+    existingOverlay.remove()
   }
-  
+
   // Remove any existing selection highlights
-  const existingHighlights = document.querySelectorAll('span[style*="background-color: rgba(33, 150, 243, 0.2)"]');
+  const existingHighlights = document.querySelectorAll(
+    'span[style*="background-color: rgba(33, 150, 243, 0.2)"]'
+  )
   existingHighlights.forEach(highlight => {
     if (highlight.parentNode) {
-      highlight.parentNode.replaceChild(document.createTextNode(highlight.textContent || ''), highlight);
+      highlight.parentNode.replaceChild(
+        document.createTextNode(highlight.textContent || ''),
+        highlight
+      )
     }
-  });
-  
+  })
+
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
-    console.log('Content script received message:', request);
-    
+    console.log('Content script received message:', request)
+
     // Validate request structure
     if (!request || !request.action) {
-      console.error('Invalid message received:', request);
-      sendResponse({ success: false, error: 'Invalid message structure' });
-      return;
+      console.error('Invalid message received:', request)
+      sendResponse({ success: false, error: 'Invalid message structure' })
+      return
     }
 
-    console.log('Content script processing action:', request.action);
+    console.log('Content script processing action:', request.action)
 
     try {
       switch (request.action) {
-        case 'captureSelection':
+        case 'captureSelection': {
           // Get current selection and capture it
-          const selection = window.getSelection();
+          const selection = window.getSelection()
           if (selection && selection.toString().trim()) {
             const selectionData = {
               text: selection.toString(),
               title: document.title,
-              url: window.location.href
-            };
-            captureSelection(selectionData);
-            sendResponse({ success: true, message: 'Selection captured' });
+              url: window.location.href,
+            }
+            captureSelection(selectionData)
+            sendResponse({ success: true, message: 'Selection captured' })
           } else {
-            console.warn('No text selected for capture');
-            showNotification('Please select some text to capture', 'error');
-            sendResponse({ success: false, error: 'No text selected' });
+            console.warn('No text selected for capture')
+            showNotification('Please select some text to capture', 'error')
+            sendResponse({ success: false, error: 'No text selected' })
           }
-          break;
+          break
+        }
         case 'captureImage':
-          if (request.data && typeof request.data === 'object' && request.data.imageUrl) {
+          if (
+            request.data &&
+            typeof request.data === 'object' &&
+            request.data.imageUrl
+          ) {
             // Find the image element and get its alt text
-            const img = document.querySelector(`img[src="${request.data.imageUrl}"]`) as HTMLImageElement;
+            const img = document.querySelector(
+              `img[src="${request.data.imageUrl}"]`
+            ) as HTMLImageElement
             const imageData = {
               imageUrl: request.data.imageUrl,
               altText: img ? img.alt || '' : '',
               title: document.title,
-              url: window.location.href
-            };
-            captureImage(imageData);
-            sendResponse({ success: true, message: 'Image captured' });
+              url: window.location.href,
+            }
+            captureImage(imageData)
+            sendResponse({ success: true, message: 'Image captured' })
           } else {
-            console.error('Invalid data for captureImage:', request.data);
-            sendResponse({ success: false, error: 'Invalid image data' });
+            console.error('Invalid data for captureImage:', request.data)
+            sendResponse({ success: false, error: 'Invalid image data' })
           }
-          break;
-        case 'capturePage':
+          break
+        case 'capturePage': {
           // Get page content and capture it
           const pageData = {
             content: document.documentElement.outerHTML,
             title: document.title,
-            url: window.location.href
-          };
-          capturePage(pageData);
-          sendResponse({ success: true, message: 'Page captured' });
-          break;
+            url: window.location.href,
+          }
+          capturePage(pageData)
+          sendResponse({ success: true, message: 'Page captured' })
+          break
+        }
         case 'captureScreenshot':
           // Initiate screenshot capture
-          console.log('Content script: Starting screenshot capture...');
-          captureScreenshot();
-          sendResponse({ success: true, message: 'Screenshot capture initiated' });
-          break;
+          console.log('Content script: Starting screenshot capture...')
+          captureScreenshot()
+          sendResponse({
+            success: true,
+            message: 'Screenshot capture initiated',
+          })
+          break
         default:
-          console.warn('Unknown action received:', request.action);
-          sendResponse({ success: false, error: 'Unknown action' });
+          console.warn('Unknown action received:', request.action)
+          sendResponse({ success: false, error: 'Unknown action' })
       }
     } catch (error) {
-      console.error('Content script error:', error);
-      sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      console.error('Content script error:', error)
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
     }
-  });
+  })
 
-function captureSelection(data: { text: string; title: string; url: string }) {
-  // Validate required fields
-  if (!data.text) {
-    console.error('captureSelection: text is required', data);
-    return;
-  }
-
-  const captureData: CaptureData = {
-    type: 'text',
-    content: data.text,
-    title: data.title || document.title,
-    url: data.url || window.location.href,
-    metadata: {
-      selectionText: data.text,
-      pageTitle: data.title || document.title
+  function captureSelection(data: {
+    text: string
+    title: string
+    url: string
+  }) {
+    // Validate required fields
+    if (!data.text) {
+      console.error('captureSelection: text is required', data)
+      return
     }
-  };
 
-  sendToBackground(captureData);
-}
-
-function captureImage(data: { imageUrl: string; altText: string; title: string; url: string }) {
-  // Validate required fields
-  if (!data.imageUrl) {
-    console.error('captureImage: imageUrl is required', data);
-    return;
-  }
-
-  const captureData: CaptureData = {
-    type: 'image',
-    content: data.imageUrl,
-    title: data.title || document.title,
-    url: data.url || window.location.href,
-    metadata: {
-      imageUrl: data.imageUrl,
-      altText: data.altText || '',
-      pageTitle: data.title || document.title
+    const captureData: CaptureData = {
+      type: 'text',
+      content: data.text,
+      title: data.title || document.title,
+      url: data.url || window.location.href,
+      metadata: {
+        selectionText: data.text,
+        pageTitle: data.title || document.title,
+      },
     }
-  };
 
-  sendToBackground(captureData);
-}
-
-function capturePage(data: { content: string; title: string; url: string }) {
-  // Validate required fields
-  if (!data.content) {
-    console.error('capturePage: content is required', data);
-    return;
+    sendToBackground(captureData)
   }
 
-  // Extract text content from HTML
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = data.content;
-  const textContent = tempDiv.textContent || tempDiv.innerText || '';
-
-  const captureData: CaptureData = {
-    type: 'page',
-    content: textContent,
-    title: data.title || document.title,
-    url: data.url || window.location.href,
-    metadata: {
-      htmlContent: data.content,
-      pageTitle: data.title || document.title,
-      wordCount: textContent.split(/\s+/).length
+  function captureImage(data: {
+    imageUrl: string
+    altText: string
+    title: string
+    url: string
+  }) {
+    // Validate required fields
+    if (!data.imageUrl) {
+      console.error('captureImage: imageUrl is required', data)
+      return
     }
-  };
 
-  sendToBackground(captureData);
-}
+    const captureData: CaptureData = {
+      type: 'image',
+      content: data.imageUrl,
+      title: data.title || document.title,
+      url: data.url || window.location.href,
+      metadata: {
+        imageUrl: data.imageUrl,
+        altText: data.altText || '',
+        pageTitle: data.title || document.title,
+      },
+    }
 
-async function captureScreenshot() {
-  try {
-    // Create selection overlay
-    createSelectionOverlay();
-  } catch (error) {
-    console.error('Screenshot capture failed:', error);
-    showNotification('Failed to capture screenshot', 'error');
-  }
-}
-
-function createSelectionOverlay() {
-  // Remove any existing overlay
-  const existingOverlay = document.getElementById('screenshot-overlay');
-  if (existingOverlay) {
-    existingOverlay.remove();
+    sendToBackground(captureData)
   }
 
-  // Create overlay
-  const overlay = document.createElement('div');
-  overlay.id = 'screenshot-overlay';
-  overlay.style.cssText = `
+  function capturePage(data: { content: string; title: string; url: string }) {
+    // Validate required fields
+    if (!data.content) {
+      console.error('capturePage: content is required', data)
+      return
+    }
+
+    // Extract text content from HTML
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = data.content
+    const textContent = tempDiv.textContent || tempDiv.innerText || ''
+
+    const captureData: CaptureData = {
+      type: 'page',
+      content: textContent,
+      title: data.title || document.title,
+      url: data.url || window.location.href,
+      metadata: {
+        htmlContent: data.content,
+        pageTitle: data.title || document.title,
+        wordCount: textContent.split(/\s+/).length,
+      },
+    }
+
+    sendToBackground(captureData)
+  }
+
+  async function captureScreenshot() {
+    try {
+      // Create selection overlay
+      createSelectionOverlay()
+    } catch (error) {
+      console.error('Screenshot capture failed:', error)
+      showNotification('Failed to capture screenshot', 'error')
+    }
+  }
+
+  function createSelectionOverlay() {
+    // Remove any existing overlay
+    const existingOverlay = document.getElementById('screenshot-overlay')
+    if (existingOverlay) {
+      existingOverlay.remove()
+    }
+
+    // Create overlay
+    const overlay = document.createElement('div')
+    overlay.id = 'screenshot-overlay'
+    overlay.style.cssText = `
     position: fixed;
     top: 0;
     left: 0;
@@ -208,22 +238,22 @@ function createSelectionOverlay() {
     z-index: 999999;
     cursor: crosshair;
     user-select: none;
-  `;
+  `
 
-  // Create selection rectangle
-  const selection = document.createElement('div');
-  selection.id = 'screenshot-selection';
-  selection.style.cssText = `
+    // Create selection rectangle
+    const selection = document.createElement('div')
+    selection.id = 'screenshot-selection'
+    selection.style.cssText = `
     position: absolute;
     border: 2px solid #2196f3;
     background: rgba(33, 150, 243, 0.1);
     display: none;
     pointer-events: none;
-  `;
+  `
 
-  // Create instructions
-  const instructions = document.createElement('div');
-  instructions.style.cssText = `
+    // Create instructions
+    const instructions = document.createElement('div')
+    instructions.style.cssText = `
     position: fixed;
     top: 20px;
     left: 50%;
@@ -236,13 +266,14 @@ function createSelectionOverlay() {
     font-size: 14px;
     z-index: 1000000;
     pointer-events: none;
-  `;
-  instructions.textContent = 'Drag to select area for screenshot. Double-click to capture. Press ESC to cancel.';
+  `
+    instructions.textContent =
+      'Drag to select area for screenshot. Double-click to capture. Press ESC to cancel.'
 
-  // Create size indicator
-  const sizeIndicator = document.createElement('div');
-  sizeIndicator.id = 'size-indicator';
-  sizeIndicator.style.cssText = `
+    // Create size indicator
+    const sizeIndicator = document.createElement('div')
+    sizeIndicator.id = 'size-indicator'
+    sizeIndicator.style.cssText = `
     position: absolute;
     background: rgba(0, 0, 0, 0.8);
     color: white;
@@ -252,11 +283,11 @@ function createSelectionOverlay() {
     font-size: 12px;
     pointer-events: none;
     display: none;
-  `;
+  `
 
-  // Create control buttons
-  const controls = document.createElement('div');
-  controls.style.cssText = `
+    // Create control buttons
+    const controls = document.createElement('div')
+    controls.style.cssText = `
     position: fixed;
     bottom: 20px;
     left: 50%;
@@ -264,11 +295,11 @@ function createSelectionOverlay() {
     display: flex;
     gap: 12px;
     z-index: 1000000;
-  `;
+  `
 
-  const captureBtn = document.createElement('button');
-  captureBtn.textContent = 'Capture';
-  captureBtn.style.cssText = `
+    const captureBtn = document.createElement('button')
+    captureBtn.textContent = 'Capture'
+    captureBtn.style.cssText = `
     background: #2196f3;
     color: white;
     border: none;
@@ -278,11 +309,11 @@ function createSelectionOverlay() {
     font-weight: 500;
     cursor: pointer;
     display: none;
-  `;
+  `
 
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.style.cssText = `
+    const cancelBtn = document.createElement('button')
+    cancelBtn.textContent = 'Cancel'
+    cancelBtn.style.cssText = `
     background: #f44336;
     color: white;
     border: none;
@@ -291,294 +322,325 @@ function createSelectionOverlay() {
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-  `;
+  `
 
-  controls.appendChild(captureBtn);
-  controls.appendChild(cancelBtn);
+    controls.appendChild(captureBtn)
+    controls.appendChild(cancelBtn)
 
-  overlay.appendChild(selection);
-  overlay.appendChild(instructions);
-  overlay.appendChild(sizeIndicator);
-  overlay.appendChild(controls);
-  document.body.appendChild(overlay);
+    overlay.appendChild(selection)
+    overlay.appendChild(instructions)
+    overlay.appendChild(sizeIndicator)
+    overlay.appendChild(controls)
+    document.body.appendChild(overlay)
 
-  // Selection state
-  let isSelecting = false;
-  let startX = 0;
-  let startY = 0;
-  let endX = 0;
-  let endY = 0;
-  let currentWidth = 0;
-  let currentHeight = 0;
+    // Selection state
+    let isSelecting = false
+    let startX = 0
+    let startY = 0
+    let endX = 0
+    let endY = 0
+    let currentWidth = 0
+    let currentHeight = 0
 
-  // Mouse down - start selection
-  overlay.addEventListener('mousedown', (e) => {
-    isSelecting = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    endX = e.clientX;
-    endY = e.clientY;
-    
-    selection.style.left = startX + 'px';
-    selection.style.top = startY + 'px';
-    selection.style.width = '0px';
-    selection.style.height = '0px';
-    selection.style.display = 'block';
-  });
+    // Mouse down - start selection
+    overlay.addEventListener('mousedown', e => {
+      isSelecting = true
+      startX = e.clientX
+      startY = e.clientY
+      endX = e.clientX
+      endY = e.clientY
 
-  // Mouse move - update selection
-  overlay.addEventListener('mousemove', (e) => {
-    if (!isSelecting) return;
+      selection.style.left = startX + 'px'
+      selection.style.top = startY + 'px'
+      selection.style.width = '0px'
+      selection.style.height = '0px'
+      selection.style.display = 'block'
+    })
 
-    endX = e.clientX;
-    endY = e.clientY;
+    // Mouse move - update selection
+    overlay.addEventListener('mousemove', e => {
+      if (!isSelecting) return
 
-    const left = Math.min(startX, endX);
-    const top = Math.min(startY, endY);
-    const width = Math.abs(endX - startX);
-    const height = Math.abs(endY - startY);
+      endX = e.clientX
+      endY = e.clientY
 
-    // Store current dimensions
-    currentWidth = width;
-    currentHeight = height;
+      const left = Math.min(startX, endX)
+      const top = Math.min(startY, endY)
+      const width = Math.abs(endX - startX)
+      const height = Math.abs(endY - startY)
 
-    console.log('Selection update:', { startX, startY, endX, endY, width, height });
+      // Store current dimensions
+      currentWidth = width
+      currentHeight = height
 
-    selection.style.left = left + 'px';
-    selection.style.top = top + 'px';
-    selection.style.width = width + 'px';
-    selection.style.height = height + 'px';
+      console.log('Selection update:', {
+        startX,
+        startY,
+        endX,
+        endY,
+        width,
+        height,
+      })
 
-    // Update size indicator
-    if (width > 10 && height > 10) {
-      sizeIndicator.style.display = 'block';
-      sizeIndicator.style.left = (left + width / 2) + 'px';
-      sizeIndicator.style.top = (top - 30) + 'px';
-      sizeIndicator.textContent = `${Math.round(width)} × ${Math.round(height)}`;
-    } else {
-      sizeIndicator.style.display = 'none';
-    }
+      selection.style.left = left + 'px'
+      selection.style.top = top + 'px'
+      selection.style.width = width + 'px'
+      selection.style.height = height + 'px'
 
-    // Show capture button if selection is large enough
-    if (width > 50 && height > 50) {
-      captureBtn.style.display = 'block';
-    } else {
-      captureBtn.style.display = 'none';
-    }
-  });
+      // Update size indicator
+      if (width > 10 && height > 10) {
+        sizeIndicator.style.display = 'block'
+        sizeIndicator.style.left = left + width / 2 + 'px'
+        sizeIndicator.style.top = top - 30 + 'px'
+        sizeIndicator.textContent = `${Math.round(width)} × ${Math.round(height)}`
+      } else {
+        sizeIndicator.style.display = 'none'
+      }
 
-  // Mouse up - end selection
-  overlay.addEventListener('mouseup', () => {
-    isSelecting = false;
-  });
+      // Show capture button if selection is large enough
+      if (width > 50 && height > 50) {
+        captureBtn.style.display = 'block'
+      } else {
+        captureBtn.style.display = 'none'
+      }
+    })
 
-  // Double click to capture
-  overlay.addEventListener('dblclick', async () => {
-    if (selection.style.display === 'block') {
-      console.log('Double click capture, current dimensions:', currentWidth, 'x', currentHeight);
-      
+    // Mouse up - end selection
+    overlay.addEventListener('mouseup', () => {
+      isSelecting = false
+    })
+
+    // Double click to capture
+    overlay.addEventListener('dblclick', async () => {
+      if (selection.style.display === 'block') {
+        console.log(
+          'Double click capture, current dimensions:',
+          currentWidth,
+          'x',
+          currentHeight
+        )
+
+        if (currentWidth < 10 || currentHeight < 10) {
+          showNotification(
+            'Please select a larger area (at least 10x10 pixels)',
+            'error'
+          )
+          return
+        }
+
+        // Create rect from stored dimensions
+        const left = Math.min(startX, endX)
+        const top = Math.min(startY, endY)
+        const rect = new DOMRect(left, top, currentWidth, currentHeight)
+
+        await captureSelectedArea(rect)
+        cleanup()
+      }
+    })
+
+    // Capture button click
+    captureBtn.addEventListener('click', async () => {
+      console.log(
+        'Capture button clicked, current dimensions:',
+        currentWidth,
+        'x',
+        currentHeight
+      )
+
+      // Check if selection is too small
       if (currentWidth < 10 || currentHeight < 10) {
-        showNotification('Please select a larger area (at least 10x10 pixels)', 'error');
-        return;
+        showNotification(
+          'Please select a larger area (at least 10x10 pixels)',
+          'error'
+        )
+        return
       }
-      
+
       // Create rect from stored dimensions
-      const left = Math.min(startX, endX);
-      const top = Math.min(startY, endY);
-      const rect = new DOMRect(left, top, currentWidth, currentHeight);
-      
-      await captureSelectedArea(rect);
-      cleanup();
-    }
-  });
+      const left = Math.min(startX, endX)
+      const top = Math.min(startY, endY)
+      const rect = new DOMRect(left, top, currentWidth, currentHeight)
 
-  // Capture button click
-  captureBtn.addEventListener('click', async () => {
-    console.log('Capture button clicked, current dimensions:', currentWidth, 'x', currentHeight);
-    
-    // Check if selection is too small
-    if (currentWidth < 10 || currentHeight < 10) {
-      showNotification('Please select a larger area (at least 10x10 pixels)', 'error');
-      return;
-    }
-    
-    // Create rect from stored dimensions
-    const left = Math.min(startX, endX);
-    const top = Math.min(startY, endY);
-    const rect = new DOMRect(left, top, currentWidth, currentHeight);
-    
-    await captureSelectedArea(rect);
-    cleanup();
-  });
+      await captureSelectedArea(rect)
+      cleanup()
+    })
 
-  // Cancel button click
-  cancelBtn.addEventListener('click', cleanup);
+    // Cancel button click
+    cancelBtn.addEventListener('click', cleanup)
 
-  // ESC key to cancel
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      cleanup();
-    }
-  };
-  document.addEventListener('keydown', handleKeyDown);
-
-  function cleanup() {
-    overlay.remove();
-    document.removeEventListener('keydown', handleKeyDown);
-  }
-}
-
-async function captureSelectedArea(rect: DOMRect) {
-  try {
-    console.log('Capturing selected area:', rect);
-    
-    // Create a canvas to capture the selected area
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    if (!ctx) {
-      throw new Error('Could not get canvas context');
-    }
-
-    // Set canvas size to actual selection size
-    const width = Math.max(Math.round(rect.width), 1);
-    const height = Math.max(Math.round(rect.height), 1);
-    canvas.width = width;
-    canvas.height = height;
-    
-    console.log('Canvas size set to:', width, 'x', height);
-    console.log('Original rect dimensions:', rect.width, 'x', rect.height);
-    
-    // Verify canvas dimensions
-    console.log('Actual canvas dimensions:', canvas.width, 'x', canvas.height);
-
-    // For now, we'll create a simple placeholder screenshot
-    // This can be enhanced later with proper DOM capture
-    
-    // Create a proper screenshot with background and content
-    console.log('Starting canvas drawing...');
-    console.log('Canvas context:', ctx);
-    console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
-    
-    // Fill the entire canvas with a light background
-    ctx.fillStyle = '#f8f9fa';
-    ctx.fillRect(0, 0, width, height);
-    console.log('Background filled');
-    
-    // Add a subtle border
-    ctx.strokeStyle = '#dee2e6';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, width, height);
-    console.log('Border drawn');
-    
-    // Add a header area
-    ctx.fillStyle = '#e9ecef';
-    ctx.fillRect(0, 0, width, Math.min(40, height / 8));
-    console.log('Header drawn');
-    
-    // Add some content areas
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(10, 50, width - 20, Math.min(60, height / 6));
-    console.log('Content area 1 drawn');
-    
-    ctx.fillStyle = '#f8f9fa';
-    ctx.fillRect(10, 120, width - 20, Math.min(40, height / 8));
-    console.log('Content area 2 drawn');
-    
-    // Add text content
-    ctx.fillStyle = '#212529';
-    ctx.font = 'bold 14px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText('Screenshot Preview', 15, 25);
-    console.log('Title drawn');
-    
-    ctx.fillStyle = '#6c757d';
-    ctx.font = '12px Arial';
-    ctx.fillText('Selected area content would appear here', 15, 70);
-    ctx.fillText('This represents the captured webpage content', 15, 85);
-    console.log('Content text drawn');
-    
-    // Add dimensions in bottom right
-    ctx.fillStyle = '#adb5bd';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${width} × ${height}`, width - 10, height - 10);
-    console.log('Dimensions drawn');
-    
-    // Add some UI elements if there's space
-    if (width > 200 && height > 100) {
-      // Add a button
-      ctx.fillStyle = '#007bff';
-      ctx.fillRect(15, 140, Math.min(80, width / 4), 25);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '10px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Button', 15 + Math.min(40, width / 8), 155);
-      console.log('Button drawn');
-      
-      // Add a link
-      if (width > 300) {
-        ctx.fillStyle = '#28a745';
-        ctx.fillRect(110, 140, Math.min(80, width / 4), 25);
-        ctx.fillText('Link', 110 + Math.min(40, width / 8), 155);
-        console.log('Link drawn');
+    // ESC key to cancel
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        cleanup()
       }
     }
+    document.addEventListener('keydown', handleKeyDown)
 
-    // Convert to data URL
-    const dataUrl = canvas.toDataURL('image/png');
-    
-    console.log('Screenshot data URL length:', dataUrl.length);
-    console.log('Screenshot data URL preview:', dataUrl.substring(0, 100) + '...');
+    function cleanup() {
+      overlay.remove()
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }
 
-    // Create capture data
-    const captureData: CaptureData = {
-      type: 'image',
-      content: dataUrl,
-      title: document.title || 'Screenshot',
-      url: window.location.href,
-      metadata: {
-        imageUrl: dataUrl,
-        altText: 'Screenshot',
-        pageTitle: document.title || 'Screenshot',
-        width: width,
-        height: height,
-        selectionArea: {
-          x: rect.left,
-          y: rect.top,
-          width: rect.width,
-          height: rect.height
+  async function captureSelectedArea(rect: DOMRect) {
+    try {
+      console.log('Capturing selected area:', rect)
+
+      // Create a canvas to capture the selected area
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+
+      if (!ctx) {
+        throw new Error('Could not get canvas context')
+      }
+
+      // Set canvas size to actual selection size
+      const width = Math.max(Math.round(rect.width), 1)
+      const height = Math.max(Math.round(rect.height), 1)
+      canvas.width = width
+      canvas.height = height
+
+      console.log('Canvas size set to:', width, 'x', height)
+      console.log('Original rect dimensions:', rect.width, 'x', rect.height)
+
+      // Verify canvas dimensions
+      console.log('Actual canvas dimensions:', canvas.width, 'x', canvas.height)
+
+      // For now, we'll create a simple placeholder screenshot
+      // This can be enhanced later with proper DOM capture
+
+      // Create a proper screenshot with background and content
+      console.log('Starting canvas drawing...')
+      console.log('Canvas context:', ctx)
+      console.log('Canvas dimensions:', canvas.width, 'x', canvas.height)
+
+      // Fill the entire canvas with a light background
+      ctx.fillStyle = '#f8f9fa'
+      ctx.fillRect(0, 0, width, height)
+      console.log('Background filled')
+
+      // Add a subtle border
+      ctx.strokeStyle = '#dee2e6'
+      ctx.lineWidth = 1
+      ctx.strokeRect(0, 0, width, height)
+      console.log('Border drawn')
+
+      // Add a header area
+      ctx.fillStyle = '#e9ecef'
+      ctx.fillRect(0, 0, width, Math.min(40, height / 8))
+      console.log('Header drawn')
+
+      // Add some content areas
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(10, 50, width - 20, Math.min(60, height / 6))
+      console.log('Content area 1 drawn')
+
+      ctx.fillStyle = '#f8f9fa'
+      ctx.fillRect(10, 120, width - 20, Math.min(40, height / 8))
+      console.log('Content area 2 drawn')
+
+      // Add text content
+      ctx.fillStyle = '#212529'
+      ctx.font = 'bold 14px Arial'
+      ctx.textAlign = 'left'
+      ctx.fillText('Screenshot Preview', 15, 25)
+      console.log('Title drawn')
+
+      ctx.fillStyle = '#6c757d'
+      ctx.font = '12px Arial'
+      ctx.fillText('Selected area content would appear here', 15, 70)
+      ctx.fillText('This represents the captured webpage content', 15, 85)
+      console.log('Content text drawn')
+
+      // Add dimensions in bottom right
+      ctx.fillStyle = '#adb5bd'
+      ctx.font = '10px Arial'
+      ctx.textAlign = 'right'
+      ctx.fillText(`${width} × ${height}`, width - 10, height - 10)
+      console.log('Dimensions drawn')
+
+      // Add some UI elements if there's space
+      if (width > 200 && height > 100) {
+        // Add a button
+        ctx.fillStyle = '#007bff'
+        ctx.fillRect(15, 140, Math.min(80, width / 4), 25)
+        ctx.fillStyle = '#ffffff'
+        ctx.font = '10px Arial'
+        ctx.textAlign = 'center'
+        ctx.fillText('Button', 15 + Math.min(40, width / 8), 155)
+        console.log('Button drawn')
+
+        // Add a link
+        if (width > 300) {
+          ctx.fillStyle = '#28a745'
+          ctx.fillRect(110, 140, Math.min(80, width / 4), 25)
+          ctx.fillText('Link', 110 + Math.min(40, width / 8), 155)
+          console.log('Link drawn')
         }
       }
-    };
 
-    // Send to background for processing
-    sendToBackground(captureData);
-    showNotification('Screenshot captured successfully!');
+      // Convert to data URL
+      const dataUrl = canvas.toDataURL('image/png')
 
-  } catch (error) {
-    console.error('Screenshot capture failed:', error);
-    showNotification('Failed to capture screenshot', 'error');
-  }
-}
+      console.log('Screenshot data URL length:', dataUrl.length)
+      console.log(
+        'Screenshot data URL preview:',
+        dataUrl.substring(0, 100) + '...'
+      )
 
-function sendToBackground(data: CaptureData) {
-  chrome.runtime.sendMessage({
-    action: 'captureContent',
-    data: data
-  }, (response) => {
-    if (response?.success) {
-      showNotification('Content captured successfully!');
-    } else {
-      showNotification('Failed to capture content', 'error');
+      // Create capture data
+      const captureData: CaptureData = {
+        type: 'image',
+        content: dataUrl,
+        title: document.title || 'Screenshot',
+        url: window.location.href,
+        metadata: {
+          imageUrl: dataUrl,
+          altText: 'Screenshot',
+          pageTitle: document.title || 'Screenshot',
+          width: width,
+          height: height,
+          selectionArea: {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height,
+          },
+        },
+      }
+
+      // Send to background for processing
+      sendToBackground(captureData)
+      showNotification('Screenshot captured successfully!')
+    } catch (error) {
+      console.error('Screenshot capture failed:', error)
+      showNotification('Failed to capture screenshot', 'error')
     }
-  });
-}
+  }
 
-function showNotification(message: string, type: 'success' | 'error' = 'success') {
-  // Create notification element
-  const notification = document.createElement('div');
-  notification.style.cssText = `
+  function sendToBackground(data: CaptureData) {
+    chrome.runtime.sendMessage(
+      {
+        action: 'captureContent',
+        data: data,
+      },
+      response => {
+        if (response?.success) {
+          showNotification('Content captured successfully!')
+        } else {
+          showNotification('Failed to capture content', 'error')
+        }
+      }
+    )
+  }
+
+  function showNotification(
+    message: string,
+    type: 'success' | 'error' = 'success'
+  ) {
+    // Create notification element
+    const notification = document.createElement('div')
+    notification.style.cssText = `
     position: fixed;
     top: 20px;
     right: 20px;
@@ -592,20 +654,19 @@ function showNotification(message: string, type: 'success' | 'error' = 'success'
     font-size: 14px;
     max-width: 300px;
     word-wrap: break-word;
-  `;
-  
-  notification.textContent = message;
-  document.body.appendChild(notification);
+  `
 
-  // Remove notification after 3 seconds
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
-    }
-  }, 3000);
+    notification.textContent = message
+    document.body.appendChild(notification)
+
+    // Remove notification after 3 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification)
+      }
+    }, 3000)
   }
 
   // Note: Removed global mouseup listener that was interfering with text selection
   // The extension should not interfere with normal user interactions on web pages
-
-})(); // End of IIFE
+})() // End of IIFE

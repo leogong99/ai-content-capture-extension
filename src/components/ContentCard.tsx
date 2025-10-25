@@ -1,28 +1,32 @@
-import React from 'react';
-import { ContentEntry } from '@/types';
-import { Calendar, Tag, ExternalLink, Trash2, Eye } from 'lucide-react';
+import React from 'react'
+import { ContentEntry } from '@/types'
+import { Calendar, Tag, ExternalLink, Trash2, Eye } from 'lucide-react'
 
 interface ContentCardProps {
-  entry: ContentEntry;
-  onDelete: (id: string) => void;
-  onView: (entry: ContentEntry) => void;
+  entry: ContentEntry
+  onDelete: (id: string) => void
+  onView: (entry: ContentEntry) => void
 }
 
-export const ContentCard: React.FC<ContentCardProps> = ({ entry, onDelete, onView }) => {
+export const ContentCard: React.FC<ContentCardProps> = ({
+  entry,
+  onDelete,
+  onView,
+}) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+      minute: '2-digit',
+    })
+  }
 
   const truncateText = (text: string, maxLength: number = 150) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
+    if (text.length <= maxLength) return text
+    return text.substring(0, maxLength) + '...'
+  }
 
   return (
     <div className="content-card">
@@ -49,41 +53,49 @@ export const ContentCard: React.FC<ContentCardProps> = ({ entry, onDelete, onVie
       </div>
 
       <div className="content-card-body">
-        <p className="content-card-summary">
-          {truncateText(entry.summary)}
-        </p>
-        
+        <p className="content-card-summary">{truncateText(entry.summary)}</p>
+
         <div className="content-card-content">
           {entry.type === 'image' || entry.content.startsWith('data:image/') ? (
             <div className="image-preview">
-              <img 
-                src={entry.metadata?.imageUrl || entry.content} 
+              <img
+                src={entry.metadata?.imageUrl || entry.content}
                 alt={entry.metadata?.altText || 'Captured image'}
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '300px', 
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '300px',
                   objectFit: 'contain',
                   borderRadius: '4px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                 }}
-                onError={(e) => {
-                  console.error('Image failed to load:', e);
-                  console.log('Entry type:', entry.type);
-                  console.log('Image src:', entry.metadata?.imageUrl || entry.content);
-                  console.log('Image src length:', (entry.metadata?.imageUrl || entry.content)?.length);
-                  console.log('Image src preview:', (entry.metadata?.imageUrl || entry.content)?.substring(0, 100));
-                  e.currentTarget.style.display = 'none';
+                onError={e => {
+                  console.error('Image failed to load:', e)
+                  console.log('Entry type:', entry.type)
+                  console.log(
+                    'Image src:',
+                    entry.metadata?.imageUrl || entry.content
+                  )
+                  console.log(
+                    'Image src length:',
+                    (entry.metadata?.imageUrl || entry.content)?.length
+                  )
+                  console.log(
+                    'Image src preview:',
+                    (entry.metadata?.imageUrl || entry.content)?.substring(
+                      0,
+                      100
+                    )
+                  )
+                  e.currentTarget.style.display = 'none'
                 }}
                 onLoad={() => {
-                  console.log('Image loaded successfully');
+                  console.log('Image loaded successfully')
                 }}
               />
             </div>
           ) : (
             <div>
-              <p className="content-text">
-                {truncateText(entry.content)}
-              </p>
+              <p className="content-text">{truncateText(entry.content)}</p>
             </div>
           )}
         </div>
@@ -130,5 +142,5 @@ export const ContentCard: React.FC<ContentCardProps> = ({ entry, onDelete, onVie
         </a>
       </div>
     </div>
-  );
-};
+  )
+}

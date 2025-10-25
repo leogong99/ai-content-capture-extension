@@ -1,5 +1,5 @@
 // Jest setup file
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom'
 
 // Mock Chrome APIs
 Object.assign(global, {
@@ -7,39 +7,39 @@ Object.assign(global, {
     runtime: {
       sendMessage: jest.fn(),
       onMessage: {
-        addListener: jest.fn()
+        addListener: jest.fn(),
       },
       onInstalled: {
-        addListener: jest.fn()
-      }
+        addListener: jest.fn(),
+      },
     },
     tabs: {
       query: jest.fn(),
-      sendMessage: jest.fn()
+      sendMessage: jest.fn(),
     },
     contextMenus: {
       create: jest.fn(),
       onClicked: {
-        addListener: jest.fn()
-      }
+        addListener: jest.fn(),
+      },
     },
     sidePanel: {
       setPanelBehavior: jest.fn(),
-      open: jest.fn()
+      open: jest.fn(),
     },
     commands: {
       onCommand: {
-        addListener: jest.fn()
-      }
+        addListener: jest.fn(),
+      },
     },
     storage: {
       local: {
         get: jest.fn(),
-        set: jest.fn()
-      }
-    }
-  }
-});
+        set: jest.fn(),
+      },
+    },
+  },
+})
 
 // Mock IndexedDB
 const mockIndexedDB = {
@@ -52,25 +52,25 @@ const mockIndexedDB = {
           get: jest.fn(),
           getAll: jest.fn(),
           delete: jest.fn(),
-          clear: jest.fn()
-        }))
-      }))
+          clear: jest.fn(),
+        })),
+      })),
     },
     onsuccess: null,
     onerror: null,
-    onupgradeneeded: null
-  }))
-};
+    onupgradeneeded: null,
+  })),
+}
 
 Object.defineProperty(global, 'indexedDB', {
   value: mockIndexedDB,
-  writable: true
-});
+  writable: true,
+})
 
 // Mock crypto.randomUUID
 Object.defineProperty(global, 'crypto', {
   value: {
-    randomUUID: jest.fn(() => 'mock-uuid-123')
+    randomUUID: jest.fn(() => 'mock-uuid-123'),
   },
-  writable: true
-});
+  writable: true,
+})
