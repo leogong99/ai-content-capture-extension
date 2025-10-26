@@ -53,7 +53,9 @@ export const ContentCard: React.FC<ContentCardProps> = ({
       </div>
 
       <div className="content-card-body">
-        <p className="content-card-summary">{truncateText(entry.summary)}</p>
+        {entry.type !== 'image' && (
+          <p className="content-card-summary">{truncateText(entry.summary)}</p>
+        )}
 
         <div className="content-card-content">
           {entry.type === 'image' || entry.content.startsWith('data:image/') ? (
