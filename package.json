@@ -1,6 +1,6 @@
 {
   "name": "ai-content-capture-extension",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "AI-Powered Chrome Extension for Local Content Capture, Categorization, and Search",
   "type": "module",
   "scripts": {

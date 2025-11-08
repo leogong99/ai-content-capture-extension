@@ -188,20 +188,29 @@
       return
     }
 
-    // Extract text content from HTML
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = data.content
-    const textContent = tempDiv.textContent || tempDiv.innerText || ''
+    // Extract headers (h1, h2, h3) from the page
+    const headers: string[] = []
+    const headerElements = document.querySelectorAll('h1, h2, h3')
+    headerElements.forEach(header => {
+      const text = header.textContent?.trim()
+      if (text) {
+        headers.push(text)
+      }
+    })
+
+    // Join headers with newlines for better readability
+    const headersText = headers.join('\n')
 
     const captureData: CaptureData = {
       type: 'page',
-      content: textContent,
+      content: headersText || data.title || document.title, // Use headers as content, fallback to title
       title: data.title || document.title,
       url: data.url || window.location.href,
       metadata: {
         htmlContent: data.content,
         pageTitle: data.title || document.title,
-        wordCount: textContent.split(/\s+/).length,
+        headers: headers,
+        headersText: headersText,
       },
     }
 

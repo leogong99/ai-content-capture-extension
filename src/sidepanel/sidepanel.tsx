@@ -259,12 +259,19 @@ export const SidePanel: React.FC = () => {
       if (!tab.id) return
 
       // Use background script's capture functions for page capture
-      await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage({
         action: 'capturePage',
         tabId: tab.id,
       })
+      
+      if (response && !response.success && response.error) {
+        // Show error message to user
+        alert(response.error)
+      }
     } catch (error) {
       console.error('Capture failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to capture page'
+      alert(errorMessage)
     }
   }
 

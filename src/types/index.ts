@@ -13,6 +13,10 @@ export interface ContentEntry {
     altText?: string
     pageTitle?: string
     selectionText?: string
+    headers?: string[]
+    headersText?: string
+    htmlContent?: string
+    wordCount?: number
   }
 }
 

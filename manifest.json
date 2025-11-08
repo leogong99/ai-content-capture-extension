@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "AI Content Capture",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "AI-Powered Chrome Extension for Local Content Capture, Categorization, and Search",
   "permissions": [
     "activeTab",
     "contextMenus",
     "sidePanel",
-    "scripting"
+    "scripting",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"

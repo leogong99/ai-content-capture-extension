@@ -1,6 +1,7 @@
 import { storageService } from '@/services/storage'
 import { aiService } from '@/services/ai'
 import { ContentEntry, CaptureRequest, ExtensionSettings } from '@/types'
+import { isRestrictedPage, getRestrictedPageErrorMessage } from '@/utils/url'
 
 // Initialize storage and AI services
 chrome.runtime.onInstalled.addListener(async () => {
@@ -34,6 +35,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return
 
   try {
+    // Check if page is restricted before attempting capture
+    if (tab.url && isRestrictedPage(tab.url)) {
+      const errorMessage = getRestrictedPageErrorMessage(tab.url)
+      console.warn('Cannot capture from restricted page:', tab.url)
+      
+      // Show notification to user
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: errorMessage,
+      })
+      return
+    }
+
     switch (info.menuItemId) {
       case 'capture-selection':
         await captureSelection(tab.id)
@@ -47,6 +63,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
   } catch (error) {
     console.error('Capture failed:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's the specific restricted page error
+    if (errorMessage.includes('extensions gallery') || errorMessage.includes('cannot be scripted')) {
+      const message = tab?.url 
+        ? getRestrictedPageErrorMessage(tab.url)
+        : 'This page cannot be captured due to browser security restrictions.'
+      
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: message,
+      })
+    }
   }
 })
 
@@ -55,6 +86,21 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   if (!tab?.id) return
 
   try {
+    // Check if page is restricted before attempting capture
+    if (tab.url && isRestrictedPage(tab.url)) {
+      const errorMessage = getRestrictedPageErrorMessage(tab.url)
+      console.warn('Cannot capture from restricted page:', tab.url)
+      
+      // Show notification to user
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: errorMessage,
+      })
+      return
+    }
+
     switch (command) {
       case 'capture-selection':
         await captureSelection(tab.id)
@@ -65,6 +111,21 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
     }
   } catch (error) {
     console.error('Command failed:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's the specific restricted page error
+    if (errorMessage.includes('extensions gallery') || errorMessage.includes('cannot be scripted')) {
+      const message = tab?.url 
+        ? getRestrictedPageErrorMessage(tab.url)
+        : 'This page cannot be captured due to browser security restrictions.'
+      
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: message,
+      })
+    }
   }
 })
 
@@ -170,6 +231,17 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         case 'captureSelection': {
           try {
             if (request.tabId) {
+              // Check if page is restricted before attempting capture
+              const tab = await chrome.tabs.get(request.tabId).catch(() => null)
+              if (tab?.url && isRestrictedPage(tab.url)) {
+                const errorMessage = getRestrictedPageErrorMessage(tab.url)
+                sendResponse({
+                  success: false,
+                  error: errorMessage,
+                })
+                return
+              }
+              
               await captureSelection(request.tabId)
               sendResponse({ success: true })
             } else {
@@ -177,11 +249,24 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
             }
           } catch (error) {
             console.error('Text capture failed:', error)
-            sendResponse({
-              success: false,
-              error:
-                error instanceof Error ? error.message : 'Text capture failed',
-            })
+            const errorMessage = error instanceof Error ? error.message : 'Text capture failed'
+            
+            // Check if it's the specific restricted page error
+            if (errorMessage.includes('extensions gallery') || errorMessage.includes('cannot be scripted')) {
+              const tab = await chrome.tabs.get(request.tabId).catch(() => null)
+              const message = tab?.url 
+                ? getRestrictedPageErrorMessage(tab.url)
+                : 'This page cannot be captured due to browser security restrictions.'
+              sendResponse({
+                success: false,
+                error: message,
+              })
+            } else {
+              sendResponse({
+                success: false,
+                error: errorMessage,
+              })
+            }
           }
           break
         }
@@ -212,6 +297,17 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         case 'capturePage': {
           try {
             if (request.tabId) {
+              // Check if page is restricted before attempting capture
+              const tab = await chrome.tabs.get(request.tabId).catch(() => null)
+              if (tab?.url && isRestrictedPage(tab.url)) {
+                const errorMessage = getRestrictedPageErrorMessage(tab.url)
+                sendResponse({
+                  success: false,
+                  error: errorMessage,
+                })
+                return
+              }
+              
               await capturePage(request.tabId)
               sendResponse({ success: true })
             } else {
@@ -219,11 +315,24 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
             }
           } catch (error) {
             console.error('Page capture failed:', error)
-            sendResponse({
-              success: false,
-              error:
-                error instanceof Error ? error.message : 'Page capture failed',
-            })
+            const errorMessage = error instanceof Error ? error.message : 'Page capture failed'
+            
+            // Check if it's the specific restricted page error
+            if (errorMessage.includes('extensions gallery') || errorMessage.includes('cannot be scripted')) {
+              const tab = await chrome.tabs.get(request.tabId).catch(() => null)
+              const message = tab?.url 
+                ? getRestrictedPageErrorMessage(tab.url)
+                : 'This page cannot be captured due to browser security restrictions.'
+              sendResponse({
+                success: false,
+                error: message,
+              })
+            } else {
+              sendResponse({
+                success: false,
+                error: errorMessage,
+              })
+            }
           }
           break
         }
@@ -296,6 +405,22 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
 async function captureSelection(tabId: number): Promise<void> {
   try {
+    // Check if the page is restricted
+    const tab = await chrome.tabs.get(tabId)
+    if (tab.url && isRestrictedPage(tab.url)) {
+      const errorMessage = getRestrictedPageErrorMessage(tab.url)
+      console.warn('Cannot capture from restricted page:', tab.url)
+      
+      // Show notification to user
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: errorMessage,
+      })
+      return
+    }
+
     // First, ensure content script is injected
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
@@ -313,11 +438,43 @@ async function captureSelection(tabId: number): Promise<void> {
     })
   } catch (error) {
     console.error('Failed to capture selection:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's the specific restricted page error
+    if (errorMessage.includes('extensions gallery') || errorMessage.includes('cannot be scripted')) {
+      const tab = await chrome.tabs.get(tabId).catch(() => null)
+      const message = tab?.url 
+        ? getRestrictedPageErrorMessage(tab.url)
+        : 'This page cannot be captured due to browser security restrictions.'
+      
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: message,
+      })
+    }
   }
 }
 
 async function captureImage(tabId: number, imageUrl: string): Promise<void> {
   try {
+    // Check if the page is restricted
+    const tab = await chrome.tabs.get(tabId)
+    if (tab.url && isRestrictedPage(tab.url)) {
+      const errorMessage = getRestrictedPageErrorMessage(tab.url)
+      console.warn('Cannot capture from restricted page:', tab.url)
+      
+      // Show notification to user
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: errorMessage,
+      })
+      return
+    }
+
     // First, ensure content script is injected
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
@@ -336,11 +493,43 @@ async function captureImage(tabId: number, imageUrl: string): Promise<void> {
     })
   } catch (error) {
     console.error('Failed to capture image:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's the specific restricted page error
+    if (errorMessage.includes('extensions gallery') || errorMessage.includes('cannot be scripted')) {
+      const tab = await chrome.tabs.get(tabId).catch(() => null)
+      const message = tab?.url 
+        ? getRestrictedPageErrorMessage(tab.url)
+        : 'This page cannot be captured due to browser security restrictions.'
+      
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: message,
+      })
+    }
   }
 }
 
 async function capturePage(tabId: number): Promise<void> {
   try {
+    // Check if the page is restricted
+    const tab = await chrome.tabs.get(tabId)
+    if (tab.url && isRestrictedPage(tab.url)) {
+      const errorMessage = getRestrictedPageErrorMessage(tab.url)
+      console.warn('Cannot capture from restricted page:', tab.url)
+      
+      // Show notification to user
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: errorMessage,
+      })
+      return
+    }
+
     // First, ensure content script is injected
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
@@ -358,20 +547,48 @@ async function capturePage(tabId: number): Promise<void> {
     })
   } catch (error) {
     console.error('Failed to capture page:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's the specific restricted page error
+    if (errorMessage.includes('extensions gallery') || errorMessage.includes('cannot be scripted')) {
+      const tab = await chrome.tabs.get(tabId).catch(() => null)
+      const message = tab?.url 
+        ? getRestrictedPageErrorMessage(tab.url)
+        : 'This page cannot be captured due to browser security restrictions.'
+      
+      await chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Cannot Capture Content',
+        message: message,
+      })
+    }
   }
 }
 
 async function processCaptureRequest(
   request: CaptureRequest
 ): Promise<ContentEntry> {
+  // For page captures, use page title as summary and headers as content
+  let summary = request.content.substring(0, 100) + (request.content.length > 100 ? '...' : '')
+  let content = request.content
+
+  if (request.type === 'page') {
+    // Use page title as summary
+    summary = request.title
+    // Use headers from metadata if available, otherwise use the content (which should be headers)
+    const headersText = (request.metadata?.headersText as string) || request.content
+    content = headersText || request.title
+  }
+
   // Create content entry with basic processing (no AI in service worker)
   const entry: ContentEntry = {
     id: crypto.randomUUID(),
     title: request.title,
     url: request.url,
-    content: request.content,
+    content: content,
     tags: ['general'], // Basic tag, will be enhanced by UI
-    summary: request.content.substring(0, 100) + (request.content.length > 100 ? '...' : ''), // Basic summary
+    summary: summary,
     category: 'General', // Basic category, will be enhanced by UI
     createdAt: new Date().toISOString(),
     type: request.type,
