@@ -2,7 +2,7 @@
 
 ## Short Description (132 characters max - for store listing summary)
 
-**AI-powered content capture with automatic categorization. All data stays on your device—100% private, works offline.**
+**AI-powered content capture with automatic categorization. Syncs across devices—100% private, works offline.**
 
 ---
 
@@ -10,7 +10,7 @@
 
 # AI Content Capture
 
-**Never lose important content again. Capture, organize, and search everything you find online with AI-powered intelligence—all stored locally on your device.**
+**Never lose important content again. Capture, organize, and search everything you find online with AI-powered intelligence. Your captures sync across all your devices when signed into Chrome—all while staying 100% private.**
 
 ---
 
@@ -18,7 +18,7 @@
 
 Stop bookmarking everything and losing track of what you saved. AI Content Capture turns your Chrome browser into an intelligent content management system that automatically organizes everything you capture.
 
-**One-click capture. AI-powered organization. Lightning-fast search from address bar. Complete privacy.**
+**One-click capture. AI-powered organization. Lightning-fast search from address bar. Cross-device sync. Complete privacy.**
 
 ---
 
@@ -50,13 +50,16 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 - **Keyboard-first**: Navigate entirely with keyboard shortcuts for power users
 
 ### 🔒 **Your Data, Your Device, Your Control**
-- **100% local storage**: Everything stays on your device using IndexedDB
+- **Cross-device sync**: Your captures automatically sync across all your devices when signed into Chrome—access your content from any computer
+- **100% private sync**: Uses Chrome's built-in sync—your data never touches our servers, only Google's secure sync service
+- **Local-first storage**: Everything stored locally using IndexedDB with cloud sync as backup
 - **Zero tracking**: No analytics, no telemetry, no data collection—period
 - **Complete privacy**: We don't see, store, or transmit any of your data
 - **Export anytime**: Full data portability—export your data in JSON format whenever you want
 
 ### ⚡ **Built for Power Users**
 - **Omnibox integration**: Search from Chrome's address bar—type `@capture` and go
+- **Cross-device sync**: Capture on your laptop, access on your desktop—seamless sync across all devices when signed into Chrome
 - **Handles 10,000+ entries**: Optimized performance that scales with your needs
 - **Auto-cleanup**: Smart storage management keeps things running smoothly
 - **Multiple interfaces**: Quick popup access, full side panel dashboard, or address bar search
@@ -87,11 +90,15 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 
 **That's it!** Works immediately with zero configuration. The extension uses local AI processing by default, so you can start capturing right away—no API keys, no setup, no hassle.
 
+**💡 Cross-device sync**: If you're signed into Chrome, your captures automatically sync across all your devices. Capture on your laptop, access on your desktop—it just works!
+
 ---
 
 ## 💡 What Makes This Different?
 
-✅ **Privacy-first by design** → Your data never leaves your device (unless you choose OpenAI with your own key)
+✅ **Privacy-first by design** → Your data never leaves your device (syncs through Chrome's secure sync service)
+
+✅ **Cross-device sync** → Access your captures on any device—laptop, desktop, work computer—all synced automatically
 
 ✅ **AI-powered without the cloud** → Intelligent categorization works completely offline
 
@@ -120,12 +127,13 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 ## 🔐 Privacy & Security (We Take This Seriously)
 
 - ✅ **Zero data collection**: We don't collect, store, or transmit any personal data
-- ✅ **Local storage only**: All data remains encrypted on your device
+- ✅ **Chrome sync integration**: Cross-device sync uses Chrome's built-in sync service—your data is encrypted and synced through Google's secure infrastructure, not our servers
+- ✅ **Local-first storage**: All data stored locally with sync as backup—works offline, syncs when online
 - ✅ **No tracking**: No analytics, telemetry, or user behavior tracking
 - ✅ **Your API key**: If you use OpenAI, your key is stored locally and never shared with us
 - ✅ **Transparent**: Open source ready—see exactly what the extension does
 
-**Bottom line**: Your browsing stays private. Your captured content stays private. We don't see any of it.
+**Bottom line**: Your browsing stays private. Your captured content stays private. We don't see any of it. Cross-device sync uses Chrome's secure sync service—the same one that syncs your bookmarks and passwords.
 
 ---
 
@@ -133,7 +141,7 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 
 - **Manifest V3**: Latest Chrome extension standard for security and performance
 - **React + TypeScript**: Modern, type-safe codebase
-- **IndexedDB**: High-performance local storage
+- **IndexedDB + Chrome Sync**: High-performance local storage with cross-device sync
 - **Compatible**: Works with Chrome 115+ and all Chromium-based browsers
 
 ---
@@ -150,4 +158,4 @@ Questions? Suggestions? Found a bug? Visit our support site—we're here to help
 
 ---
 
-*Version 1.5.0 | Now with Omnibox search—access your captures directly from Chrome's address bar!*
+*Version 1.6.0 | Now with cross-device sync—access your captures on any device when signed into Chrome!*

@@ -6,16 +6,67 @@ const DB_VERSION = 1
 const STORE_NAME = 'entries'
 const CONFIG_STORE = 'config'
 
+// Chrome storage sync constants
+const SYNC_STORAGE_PREFIX = 'entry_'
+const SYNC_STORAGE_INDEX_KEY = 'entries_index'
+const SYNC_STORAGE_CONFIG_PREFIX = 'config_'
+const MAX_CHUNK_SIZE = 7000 // Leave room under 8KB limit for JSON overhead
+const SYNC_QUOTA_BYTES = 100 * 1024 // 100KB total limit
+
+interface EntryChunk {
+  id: string
+  chunkIndex: number
+  totalChunks: number
+  data: string // JSON stringified portion of entry
+}
+
+interface EntryIndex {
+  [entryId: string]: {
+    chunkKeys: string[]
+    metadata: {
+      id: string
+      title: string
+      url: string
+      createdAt: string
+      category: string
+      tags: string[]
+      summary: string
+      type: 'text' | 'image' | 'page'
+    }
+  }
+}
+
 class StorageService {
   private db: IDBDatabase | null = null
+  private useSyncStorage: boolean = true
 
   async init(): Promise<void> {
+    // Initialize IndexedDB (used as local cache)
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
 
       request.onerror = () => reject(request.error)
-      request.onsuccess = () => {
+      request.onsuccess = async () => {
         this.db = request.result
+        
+        // Check if IndexedDB is empty - if so, sync from chrome.storage.sync
+        const isEmpty = await this.isIndexedDBEmpty()
+        if (isEmpty) {
+          console.log('IndexedDB is empty, syncing from chrome.storage.sync...')
+          try {
+            await this.syncFromChromeStorage()
+            console.log('Sync from chrome.storage.sync completed')
+          } catch (err) {
+            console.error('Failed to sync from chrome storage on init:', err)
+            // Don't reject - allow extension to work with empty storage
+          }
+        } else {
+          // IndexedDB has data, but still sync to ensure we have latest from cloud
+          this.syncFromChromeStorage().catch(err => {
+            console.warn('Background sync from chrome storage failed:', err)
+          })
+        }
+        
         resolve()
       }
 
@@ -44,21 +95,245 @@ class StorageService {
     })
   }
 
+  // Helper: Check if IndexedDB is empty
+  private async isIndexedDBEmpty(): Promise<boolean> {
+    if (!this.db) return true
+
+    return new Promise((resolve) => {
+      const transaction = this.db!.transaction([STORE_NAME], 'readonly')
+      const store = transaction.objectStore(STORE_NAME)
+      const request = store.count()
+
+      request.onsuccess = () => resolve(request.result === 0)
+      request.onerror = () => resolve(true) // Assume empty on error
+    })
+  }
+
+  // Helper: Check if chrome.storage.sync is available
+  private async checkSyncStorageAvailable(): Promise<boolean> {
+    try {
+      await chrome.storage.sync.getBytesInUse(null)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Helper: Split entry into chunks for sync storage
+  private splitEntryIntoChunks(entry: ContentEntry): EntryChunk[] {
+    const entryJson = JSON.stringify(entry)
+    const chunks: EntryChunk[] = []
+    const totalChunks = Math.ceil(entryJson.length / MAX_CHUNK_SIZE)
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * MAX_CHUNK_SIZE
+      const end = Math.min(start + MAX_CHUNK_SIZE, entryJson.length)
+      chunks.push({
+        id: entry.id,
+        chunkIndex: i,
+        totalChunks,
+        data: entryJson.substring(start, end),
+      })
+    }
+
+    return chunks
+  }
+
+  // Helper: Reconstruct entry from chunks
+  private reconstructEntryFromChunks(chunks: EntryChunk[]): ContentEntry | null {
+    if (chunks.length === 0) return null
+
+    // Sort chunks by index
+    chunks.sort((a, b) => a.chunkIndex - b.chunkIndex)
+
+    // Verify all chunks are present
+    if (chunks.length !== chunks[0].totalChunks) {
+      console.warn(`Missing chunks for entry ${chunks[0].id}`)
+      return null
+    }
+
+    // Reconstruct JSON string
+    const entryJson = chunks.map(chunk => chunk.data).join('')
+    return JSON.parse(entryJson) as ContentEntry
+  }
+
+  // Helper: Get entry index from sync storage
+  private async getEntryIndex(): Promise<EntryIndex> {
+    try {
+      const result = await chrome.storage.sync.get(SYNC_STORAGE_INDEX_KEY)
+      return (result[SYNC_STORAGE_INDEX_KEY] as EntryIndex) || {}
+    } catch {
+      return {}
+    }
+  }
+
+  // Helper: Update entry index in sync storage
+  private async updateEntryIndex(index: EntryIndex): Promise<void> {
+    await chrome.storage.sync.set({ [SYNC_STORAGE_INDEX_KEY]: index })
+  }
+
+  // Helper: Sync entries from chrome.storage.sync to IndexedDB
+  private async syncFromChromeStorage(): Promise<void> {
+    if (!this.useSyncStorage || !(await this.checkSyncStorageAvailable())) {
+      console.log('Sync storage not available')
+      return
+    }
+
+    try {
+      const index = await this.getEntryIndex()
+      const entryIds = Object.keys(index)
+      
+      console.log(`Syncing ${entryIds.length} entries from chrome.storage.sync...`)
+      
+      if (entryIds.length === 0) {
+        console.log('No entries in sync storage index')
+        return
+      }
+
+      let syncedCount = 0
+      for (const entryId of entryIds) {
+        const entryInfo = index[entryId]
+        const chunkKeys = entryInfo.chunkKeys
+
+        // Get all chunks
+        const chunksData = await chrome.storage.sync.get(chunkKeys)
+        const chunks: EntryChunk[] = []
+
+        for (const key of chunkKeys) {
+          const chunk = chunksData[key] as EntryChunk | undefined
+          if (chunk) {
+            chunks.push(chunk)
+          } else {
+            console.warn(`Missing chunk ${key} for entry ${entryId}`)
+          }
+        }
+
+        // Reconstruct entry
+        const entry = this.reconstructEntryFromChunks(chunks)
+        if (entry && this.db) {
+          // Save to IndexedDB (local cache)
+          await new Promise<void>((resolve, reject) => {
+            const transaction = this.db!.transaction([STORE_NAME], 'readwrite')
+            const store = transaction.objectStore(STORE_NAME)
+            const request = store.put(entry)
+            request.onsuccess = () => {
+              syncedCount++
+              resolve()
+            }
+            request.onerror = () => reject(request.error)
+          })
+        } else {
+          console.warn(`Failed to reconstruct entry ${entryId} from chunks`)
+        }
+      }
+      
+      console.log(`Successfully synced ${syncedCount} entries from chrome.storage.sync`)
+    } catch (error) {
+      console.error('Failed to sync from chrome storage:', error)
+      throw error // Re-throw so caller knows sync failed
+    }
+  }
+
   async saveEntry(entry: ContentEntry): Promise<void> {
     if (!this.db) await this.init()
 
-    return new Promise((resolve, reject) => {
+    // Save to IndexedDB (local cache) first for fast access
+    await new Promise<void>((resolve, reject) => {
       const transaction = this.db!.transaction([STORE_NAME], 'readwrite')
       const store = transaction.objectStore(STORE_NAME)
       const request = store.put(entry)
 
-      request.onsuccess = async () => {
-        // Check storage limits after saving
-        await this.enforceStorageLimits()
-        resolve()
-      }
+      request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+
+    // Also save to chrome.storage.sync for cross-device sync
+    if (this.useSyncStorage) {
+      const syncAvailable = await this.checkSyncStorageAvailable()
+      if (syncAvailable) {
+        try {
+          await this.saveEntryToSyncStorage(entry)
+        } catch (error) {
+          console.error('Failed to save entry to sync storage:', error)
+          // Log detailed error for debugging
+          if (error instanceof Error) {
+            console.error('Error details:', error.message, error.stack)
+          }
+          // Continue even if sync fails - local storage still works
+          // But we should notify the user somehow
+        }
+      } else {
+        console.warn('Chrome sync storage not available. User may not be signed into Chrome.')
+      }
+    }
+
+    // Check storage limits after saving
+    await this.enforceStorageLimits()
+  }
+
+  // Helper: Save entry to chrome.storage.sync with chunking
+  private async saveEntryToSyncStorage(entry: ContentEntry): Promise<void> {
+    console.log(`Saving entry ${entry.id} to chrome.storage.sync...`)
+    
+    // Check available space
+    const bytesInUse = await chrome.storage.sync.getBytesInUse(null)
+    const entrySize = JSON.stringify(entry).length
+
+    console.log(`Sync storage usage: ${bytesInUse} bytes / ${SYNC_QUOTA_BYTES} bytes`)
+
+    // Warn if approaching quota (but still try to save)
+    if (bytesInUse + entrySize > SYNC_QUOTA_BYTES * 0.9) {
+      console.warn('Sync storage quota approaching limit. Consider cleaning up old entries.')
+    }
+
+    // Split entry into chunks
+    const chunks = this.splitEntryIntoChunks(entry)
+    const chunkKeys = chunks.map(
+      chunk => `${SYNC_STORAGE_PREFIX}${entry.id}_${chunk.chunkIndex}`
+    )
+
+    console.log(`Saving ${chunks.length} chunks for entry ${entry.id}`)
+
+    // Prepare data to save
+    const dataToSave: Record<string, EntryChunk> = {}
+    chunks.forEach((chunk, index) => {
+      dataToSave[chunkKeys[index]] = chunk
+    })
+
+    // Save chunks
+    await chrome.storage.sync.set(dataToSave)
+    
+    // Verify chunks were saved
+    const verifyData = await chrome.storage.sync.get(chunkKeys)
+    const savedChunks = Object.keys(verifyData).filter(key => verifyData[key] !== undefined)
+    if (savedChunks.length !== chunkKeys.length) {
+      throw new Error(`Failed to save all chunks. Expected ${chunkKeys.length}, saved ${savedChunks.length}`)
+    }
+    console.log(`Verified ${savedChunks.length} chunks saved to sync storage`)
+
+    // Update entry index
+    const index = await this.getEntryIndex()
+    index[entry.id] = {
+      chunkKeys,
+      metadata: {
+        id: entry.id,
+        title: entry.title,
+        url: entry.url,
+        createdAt: entry.createdAt,
+        category: entry.category,
+        tags: entry.tags,
+        summary: entry.summary,
+        type: entry.type,
+      },
+    }
+    await this.updateEntryIndex(index)
+    
+    // Verify index was saved
+    const verifyIndex = await this.getEntryIndex()
+    if (!verifyIndex[entry.id]) {
+      throw new Error('Failed to save entry to index')
+    }
+    console.log(`Entry ${entry.id} successfully saved to chrome.storage.sync`)
   }
 
   async enforceStorageLimits(): Promise<void> {
@@ -247,7 +522,8 @@ class StorageService {
   async deleteEntry(id: string): Promise<void> {
     if (!this.db) await this.init()
 
-    return new Promise((resolve, reject) => {
+    // Delete from IndexedDB
+    await new Promise<void>((resolve, reject) => {
       const transaction = this.db!.transaction([STORE_NAME], 'readwrite')
       const store = transaction.objectStore(STORE_NAME)
       const request = store.delete(id)
@@ -255,6 +531,30 @@ class StorageService {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+
+    // Also delete from chrome.storage.sync
+    if (this.useSyncStorage && (await this.checkSyncStorageAvailable())) {
+      try {
+        await this.deleteEntryFromSyncStorage(id)
+      } catch (error) {
+        console.warn('Failed to delete entry from sync storage:', error)
+      }
+    }
+  }
+
+  // Helper: Delete entry from chrome.storage.sync
+  private async deleteEntryFromSyncStorage(entryId: string): Promise<void> {
+    const index = await this.getEntryIndex()
+    const entryInfo = index[entryId]
+
+    if (entryInfo) {
+      // Delete all chunks
+      await chrome.storage.sync.remove(entryInfo.chunkKeys)
+
+      // Remove from index
+      delete index[entryId]
+      await this.updateEntryIndex(index)
+    }
   }
 
   async searchEntries(
@@ -367,6 +667,28 @@ class StorageService {
   }
 
   async getConfig(key: string): Promise<unknown> {
+    // Try sync storage first (for cross-device sync)
+    if (this.useSyncStorage && (await this.checkSyncStorageAvailable())) {
+      try {
+        const syncKey = `${SYNC_STORAGE_CONFIG_PREFIX}${key}`
+        const result = await chrome.storage.sync.get(syncKey)
+        if (result[syncKey] !== undefined) {
+          // Also cache in IndexedDB for fast access
+          if (!this.db) await this.init()
+          await new Promise<void>((resolve) => {
+            const transaction = this.db!.transaction([CONFIG_STORE], 'readwrite')
+            const store = transaction.objectStore(CONFIG_STORE)
+            store.put({ key, value: result[syncKey] })
+            transaction.oncomplete = () => resolve()
+          })
+          return result[syncKey]
+        }
+      } catch (error) {
+        console.warn('Failed to get config from sync storage:', error)
+      }
+    }
+
+    // Fallback to IndexedDB
     if (!this.db) await this.init()
 
     return new Promise((resolve, reject) => {
@@ -380,9 +702,10 @@ class StorageService {
   }
 
   async setConfig(key: string, value: unknown): Promise<void> {
+    // Save to IndexedDB (local cache)
     if (!this.db) await this.init()
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const transaction = this.db!.transaction([CONFIG_STORE], 'readwrite')
       const store = transaction.objectStore(CONFIG_STORE)
       const request = store.put({ key, value })
@@ -390,6 +713,16 @@ class StorageService {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+
+    // Also save to chrome.storage.sync for cross-device sync
+    if (this.useSyncStorage && (await this.checkSyncStorageAvailable())) {
+      try {
+        const syncKey = `${SYNC_STORAGE_CONFIG_PREFIX}${key}`
+        await chrome.storage.sync.set({ [syncKey]: value })
+      } catch (error) {
+        console.warn('Failed to save config to sync storage:', error)
+      }
+    }
   }
 
   async exportData(): Promise<ContentEntry[]> {
@@ -405,7 +738,8 @@ class StorageService {
   async clearAllData(): Promise<void> {
     if (!this.db) await this.init()
 
-    return new Promise((resolve, reject) => {
+    // Clear IndexedDB
+    await new Promise<void>((resolve, reject) => {
       const transaction = this.db!.transaction([STORE_NAME], 'readwrite')
       const store = transaction.objectStore(STORE_NAME)
       const request = store.clear()
@@ -413,6 +747,23 @@ class StorageService {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+
+    // Also clear chrome.storage.sync
+    if (this.useSyncStorage && (await this.checkSyncStorageAvailable())) {
+      try {
+        // Get all entry keys from index
+        const index = await this.getEntryIndex()
+        const allChunkKeys: string[] = []
+        Object.values(index).forEach(entryInfo => {
+          allChunkKeys.push(...entryInfo.chunkKeys)
+        })
+
+        // Remove all chunks and index
+        await chrome.storage.sync.remove([...allChunkKeys, SYNC_STORAGE_INDEX_KEY])
+      } catch (error) {
+        console.warn('Failed to clear sync storage:', error)
+      }
+    }
   }
 
   async getUserAgreement(): Promise<UserAgreement | null> {
@@ -423,6 +774,96 @@ class StorageService {
   async setUserAgreement(agreement: UserAgreement): Promise<void> {
     return this.setConfig('userAgreement', agreement)
   }
+
+  // Get sync storage status and usage
+  async getSyncStatus(): Promise<{
+    available: boolean
+    bytesInUse: number
+    quotaBytes: number
+    usagePercent: number
+  }> {
+    const available = await this.checkSyncStorageAvailable()
+    if (!available) {
+      return {
+        available: false,
+        bytesInUse: 0,
+        quotaBytes: SYNC_QUOTA_BYTES,
+        usagePercent: 0,
+      }
+    }
+
+    try {
+      const bytesInUse = await chrome.storage.sync.getBytesInUse(null)
+      const usagePercent = (bytesInUse / SYNC_QUOTA_BYTES) * 100
+      return {
+        available: true,
+        bytesInUse,
+        quotaBytes: SYNC_QUOTA_BYTES,
+        usagePercent: Math.round(usagePercent * 100) / 100,
+      }
+    } catch (error) {
+      console.error('Failed to get sync status:', error)
+      return {
+        available: false,
+        bytesInUse: 0,
+        quotaBytes: SYNC_QUOTA_BYTES,
+        usagePercent: 0,
+      }
+    }
+  }
+
+  // Initialize sync listener for cross-device updates
+  initSyncListener(): void {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName === 'sync' && this.useSyncStorage) {
+          // Handle entry index changes
+          if (changes[SYNC_STORAGE_INDEX_KEY]) {
+            console.log('Entry index changed in sync storage, syncing...')
+            this.syncFromChromeStorage().catch(err => {
+              console.error('Failed to sync after index change:', err)
+            })
+          }
+
+          // Handle entry chunk changes
+          const entryChunkKeys = Object.keys(changes).filter(key =>
+            key.startsWith(SYNC_STORAGE_PREFIX)
+          )
+          if (entryChunkKeys.length > 0) {
+            console.log('Entry chunks changed in sync storage, syncing...')
+            this.syncFromChromeStorage().catch(err => {
+              console.error('Failed to sync after chunk change:', err)
+            })
+          }
+
+          // Handle config changes
+          const configKeys = Object.keys(changes).filter(key =>
+            key.startsWith(SYNC_STORAGE_CONFIG_PREFIX)
+          )
+          if (configKeys.length > 0) {
+            console.log('Config changed in sync storage, updating local cache...')
+            configKeys.forEach(async key => {
+              const configKey = key.replace(SYNC_STORAGE_CONFIG_PREFIX, '')
+              const newValue = changes[key].newValue
+              if (newValue !== undefined && this.db) {
+                await new Promise<void>((resolve) => {
+                  const transaction = this.db!.transaction([CONFIG_STORE], 'readwrite')
+                  const store = transaction.objectStore(CONFIG_STORE)
+                  store.put({ key: configKey, value: newValue })
+                  transaction.oncomplete = () => resolve()
+                })
+              }
+            })
+          }
+        }
+      })
+    }
+  }
 }
 
 export const storageService = new StorageService()
+
+// Initialize sync listener when module loads (for background script)
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+  storageService.initSyncListener()
+}

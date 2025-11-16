@@ -3,7 +3,13 @@ import { aiService } from '@/services/ai'
 import { ContentEntry, CaptureRequest, ExtensionSettings } from '@/types'
 import { isRestrictedPage, getRestrictedPageErrorMessage } from '@/utils/url'
 
-// Initialize storage and AI services
+// Initialize storage on startup (service workers can restart)
+;(async () => {
+  await storageService.init()
+  console.log('Storage service initialized on startup')
+})()
+
+// Initialize storage and AI services on install
 chrome.runtime.onInstalled.addListener(async () => {
   await storageService.init()
 
