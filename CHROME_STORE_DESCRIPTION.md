@@ -18,7 +18,7 @@
 
 Stop bookmarking everything and losing track of what you saved. AI Content Capture turns your Chrome browser into an intelligent content management system that automatically organizes everything you capture.
 
-**One-click capture. AI-powered organization. Lightning-fast search. Complete privacy.**
+**One-click capture. AI-powered organization. Lightning-fast search from address bar. Complete privacy.**
 
 ---
 
@@ -38,10 +38,16 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 - **Optional enhancement**: Add your OpenAI API key for even smarter categorization (your key, your control)
 
 ### 🔍 **Find Anything in Seconds**
+- **Omnibox search**: Type `@capture` in Chrome's address bar to search instantly—no UI needed
+  - See your 8 most recent captures when you type `@capture`
+  - Search by typing `@capture [your query]` for instant results
+  - Navigate with arrow keys and press Enter to open in side panel
+  - Works entirely keyboard-driven—perfect for power users
 - **Full-text search**: Search across all captured content with instant results
 - **Advanced filters**: Narrow down by category, tags, content type, or date range
 - **Blazing fast**: Sub-500ms search even with 10,000+ entries
 - **Smart highlighting**: See exactly where your search terms appear
+- **Keyboard-first**: Navigate entirely with keyboard shortcuts for power users
 
 ### 🔒 **Your Data, Your Device, Your Control**
 - **100% local storage**: Everything stays on your device using IndexedDB
@@ -50,9 +56,10 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 - **Export anytime**: Full data portability—export your data in JSON format whenever you want
 
 ### ⚡ **Built for Power Users**
+- **Omnibox integration**: Search from Chrome's address bar—type `@capture` and go
 - **Handles 10,000+ entries**: Optimized performance that scales with your needs
 - **Auto-cleanup**: Smart storage management keeps things running smoothly
-- **Multiple interfaces**: Quick popup access or full side panel dashboard
+- **Multiple interfaces**: Quick popup access, full side panel dashboard, or address bar search
 - **Beautiful design**: Modern UI with dark/light themes that follow your system preferences
 
 ---
@@ -75,7 +82,7 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 
 1. **Install** → Click "Add to Chrome" (no account needed)
 2. **Capture** → Right-click any content or press `Ctrl+Shift+C`
-3. **Search** → Open the side panel and find anything instantly
+3. **Search** → Type `@capture` in Chrome's address bar or open the side panel
 4. **Optional** → Add your OpenAI API key in settings for enhanced AI (or use the free local AI)
 
 **That's it!** Works immediately with zero configuration. The extension uses local AI processing by default, so you can start capturing right away—no API keys, no setup, no hassle.
@@ -90,6 +97,8 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 
 ✅ **Lightning-fast** → Search 10,000+ entries in under 500ms
 
+✅ **Keyboard-first access** → Search from Chrome's address bar with `@capture`—no mouse needed
+
 ✅ **Zero cost** → Free forever, no subscriptions, no hidden fees
 
 ✅ **Works everywhere** → Captures content from any website, any format
@@ -102,6 +111,7 @@ Stop bookmarking everything and losing track of what you saved. AI Content Captu
 
 - **Capture speed**: < 2 seconds for most content types
 - **Search speed**: < 500ms for up to 1,000 entries, scales to 10,000+
+- **Omnibox suggestions**: < 300ms response time with smart caching
 - **Storage**: Efficient IndexedDB with optimized indexing
 - **Memory**: Minimal footprint with smart lazy loading
 
@@ -140,4 +150,4 @@ Questions? Suggestions? Found a bug? Visit our support site—we're here to help
 
 ---
 
-*Version 1.4.0 | Updated regularly with new features and improvements*
+*Version 1.5.0 | Now with Omnibox search—access your captures directly from Chrome's address bar!*
