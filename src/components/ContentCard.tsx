@@ -29,7 +29,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
   }
 
   return (
-    <div className="content-card">
+    <div className="content-card" id={`entry-${entry.id}`}>
       <div className="content-card-header">
         <h3 className="content-card-title" title={entry.title}>
           {truncateText(entry.title, 60)}

@@ -78,76 +78,7 @@ export const SidePanel: React.FC = () => {
     }
   }, [sortBy, sortOrder])
 
-  useEffect(() => {
-    loadEntries()
-    checkUserAgreement()
-
-    // Listen for new captures to update the dashboard live
-    const handleMessage = async (message: { action: string; data?: ContentEntry }) => {
-      if (message.action === 'contentCaptured') {
-        console.log('Sidepanel: New content captured, refreshing...')
-        const newEntry = message.data
-        
-        // Reload entries to get the latest data
-        await loadEntries()
-        
-        // Automatically enhance with AI if configured
-        if (newEntry) {
-          await autoEnhanceNewEntry(newEntry)
-        }
-      }
-    }
-
-    chrome.runtime.onMessage.addListener(handleMessage)
-
-    // Cleanup listener on unmount
-    return () => {
-      chrome.runtime.onMessage.removeListener(handleMessage)
-    }
-  }, [loadEntries])
-
-  const checkUserAgreement = async () => {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: 'getUserAgreement',
-      })
-      if (response && response.success) {
-        const agreement = response.data
-        if (!agreement || !agreement.hasAgreed) {
-          setShowAgreement(true)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to check user agreement:', error)
-      // If we can't check, show the agreement to be safe
-      setShowAgreement(true)
-    }
-  }
-
-  const handleAgreementAgree = async () => {
-    try {
-      const agreement: UserAgreement = {
-        hasAgreed: true,
-        agreedAt: new Date().toISOString(),
-        version: '1.0',
-      }
-
-      await chrome.runtime.sendMessage({
-        action: 'setUserAgreement',
-        agreement,
-      })
-
-      setShowAgreement(false)
-    } catch (error) {
-      console.error('Failed to save user agreement:', error)
-    }
-  }
-
-  const handleShowAgreement = () => {
-    setShowAgreement(true)
-  }
-
-  const handleSearch = async (query: string, filters: SearchFilters) => {
+  const handleSearch = useCallback(async (query: string, filters: SearchFilters) => {
     try {
       setIsSearching(true)
       const response = await chrome.runtime.sendMessage({
@@ -174,15 +105,9 @@ export const SidePanel: React.FC = () => {
     } finally {
       setIsSearching(false)
     }
-  }
+  }, [])
 
-  const loadMoreEntries = async () => {
-    if (!loadingMore && hasMore) {
-      await loadEntries(currentPage + 1, true)
-    }
-  }
-
-  const autoEnhanceNewEntry = async (entry: ContentEntry) => {
+  const autoEnhanceNewEntry = useCallback(async (entry: ContentEntry) => {
     try {
       console.log('🤖 Auto-enhancing new entry with AI:', entry.id)
       
@@ -227,6 +152,183 @@ export const SidePanel: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Failed to auto-enhance entry with AI:', error)
+    }
+  }, [])
+
+  const navigateToEntry = useCallback(async (entryId: string) => {
+    try {
+      console.log('Navigating to entry:', entryId, 'Current entries:', entries.length)
+      
+      // First, try to find entry in current entries
+      let entry: ContentEntry | undefined = entries.find(e => e.id === entryId)
+      
+      if (!entry) {
+        console.log('Entry not in current list, fetching from storage...')
+        // Try loading from storage
+        const response = await chrome.runtime.sendMessage({
+          action: 'getEntry',
+          id: entryId,
+        })
+        
+        if (response.success && response.data) {
+          entry = response.data as ContentEntry
+          console.log('Entry fetched:', entry.title)
+          // Add to entries if not already there
+          setEntries(prev => {
+            if (!prev.find(e => e.id === entryId)) {
+              return [entry!, ...prev]
+            }
+            return prev
+          })
+          setFilteredEntries(prev => {
+            if (!prev.find(e => e.id === entryId)) {
+              return [entry!, ...prev]
+            }
+            return prev
+          })
+        } else {
+          console.error('Entry not found in storage:', entryId)
+          return
+        }
+      } else {
+        console.log('Entry found in current list:', entry.title)
+      }
+
+      if (!entry) {
+        console.error('Entry is still undefined after fetch attempt')
+        return
+      }
+
+      // Ensure entry is in filtered entries for display
+      setFilteredEntries(prev => {
+        if (!prev.find(e => e.id === entryId)) {
+          return [entry!, ...prev]
+        }
+        return prev
+      })
+
+      // Scroll to entry with multiple retries
+      const scrollWithRetry = (attempt = 0) => {
+        const element = document.getElementById(`entry-${entryId}`)
+        if (element) {
+          console.log('Found entry element, scrolling...')
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          element.classList.add('highlighted')
+          setTimeout(() => {
+            element.classList.remove('highlighted')
+          }, 2000)
+        } else if (attempt < 5) {
+          console.log(`Entry element not found, retrying... (${attempt + 1}/5)`)
+          setTimeout(() => scrollWithRetry(attempt + 1), 300)
+        } else {
+          console.error('Failed to find entry element after retries')
+        }
+      }
+      
+      // Start scrolling after a short delay to ensure DOM is ready
+      setTimeout(() => scrollWithRetry(), 100)
+    } catch (error) {
+      console.error('Failed to navigate to entry:', error)
+    }
+  }, [entries])
+
+  useEffect(() => {
+    loadEntries()
+    checkUserAgreement()
+  }, [loadEntries])
+
+  useEffect(() => {
+    // Listen for new captures to update the dashboard live
+    const handleMessage = async (message: { action: string; data?: ContentEntry; entryId?: string; query?: string }) => {
+      console.log('Sidepanel: Received message:', message.action)
+      
+      if (message.action === 'contentCaptured') {
+        console.log('Sidepanel: New content captured, refreshing...')
+        const newEntry = message.data
+        
+        // Reload entries to get the latest data
+        await loadEntries()
+        
+        // Automatically enhance with AI if configured
+        if (newEntry) {
+          await autoEnhanceNewEntry(newEntry)
+        }
+      } else if (message.action === 'navigateToEntry') {
+        // Handle navigation from omnibox
+        console.log('Sidepanel: Navigating to entry:', message.entryId)
+        const entryId = message.entryId
+        if (entryId) {
+          // Ensure entries are loaded first - check current state
+          setEntries(currentEntries => {
+            if (currentEntries.length === 0) {
+              loadEntries().catch(console.error)
+            }
+            return currentEntries
+          })
+          await navigateToEntry(entryId)
+        }
+      } else if (message.action === 'searchInSidePanel') {
+        // Handle search from omnibox
+        console.log('Sidepanel: Searching for:', message.query)
+        const query = message.query
+        if (query) {
+          await handleSearch(query, {})
+        }
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleMessage)
+
+    // Cleanup listener on unmount
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage)
+    }
+  }, [loadEntries, navigateToEntry, handleSearch, autoEnhanceNewEntry])
+
+  const checkUserAgreement = async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getUserAgreement',
+      })
+      if (response && response.success) {
+        const agreement = response.data
+        if (!agreement || !agreement.hasAgreed) {
+          setShowAgreement(true)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check user agreement:', error)
+      // If we can't check, show the agreement to be safe
+      setShowAgreement(true)
+    }
+  }
+
+  const handleAgreementAgree = async () => {
+    try {
+      const agreement: UserAgreement = {
+        hasAgreed: true,
+        agreedAt: new Date().toISOString(),
+        version: '1.0',
+      }
+
+      await chrome.runtime.sendMessage({
+        action: 'setUserAgreement',
+        agreement,
+      })
+
+      setShowAgreement(false)
+    } catch (error) {
+      console.error('Failed to save user agreement:', error)
+    }
+  }
+
+  const handleShowAgreement = () => {
+    setShowAgreement(true)
+  }
+
+  const loadMoreEntries = async () => {
+    if (!loadingMore && hasMore) {
+      await loadEntries(currentPage + 1, true)
     }
   }
 

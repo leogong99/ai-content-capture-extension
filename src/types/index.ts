@@ -48,11 +48,18 @@ export interface UserAgreement {
   version: string
 }
 
+export interface OmniboxConfig {
+  keyword: string
+  enabled: boolean
+  maxSuggestions: number
+}
+
 export interface ExtensionSettings {
   ai: AIConfig
   storage: StorageConfig
   theme: 'light' | 'dark' | 'auto'
   userAgreement: UserAgreement
+  omnibox?: OmniboxConfig
 }
 
 export interface CaptureRequest {
