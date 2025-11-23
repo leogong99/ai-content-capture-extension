@@ -1,3 +1,14 @@
+export interface StudyNotes {
+  briefSummary: string
+  detailedSummary: string
+  bulletPoints: string[]
+  keyPoints: string[]
+  questions: string[]
+  actionItems: string[]
+  generatedAt: string
+  detailLevel: 'brief' | 'detailed' | 'bullets'
+}
+
 export interface ContentEntry {
   id: string
   title: string
@@ -17,6 +28,7 @@ export interface ContentEntry {
     headersText?: string
     htmlContent?: string
     wordCount?: number
+    studyNotes?: StudyNotes
   }
 }
 
@@ -60,6 +72,7 @@ export interface ExtensionSettings {
   theme: 'light' | 'dark' | 'auto'
   userAgreement: UserAgreement
   omnibox?: OmniboxConfig
+  duplicateDetection?: DuplicateDetectionConfig
 }
 
 export interface CaptureRequest {
@@ -75,4 +88,18 @@ export interface AITaggingResult {
   tags: string[]
   category: string
   confidence: number
+}
+
+export interface DuplicateMatch {
+  entry: ContentEntry
+  similarity: number
+  matchType: 'exact' | 'near-duplicate' | 'url' | 'content'
+  reason: string
+}
+
+export interface DuplicateDetectionConfig {
+  enabled: boolean
+  autoBlockExact: boolean
+  similarityThreshold: number
+  checkOnSave: boolean
 }

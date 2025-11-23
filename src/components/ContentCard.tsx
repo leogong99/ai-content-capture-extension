@@ -1,18 +1,25 @@
 import React from 'react'
 import { ContentEntry } from '@/types'
-import { Calendar, Tag, ExternalLink, Trash2, Eye } from 'lucide-react'
+import { Calendar, Tag, ExternalLink, Trash2, Eye, Sparkles } from 'lucide-react'
+import { StudyNotes } from './StudyNotes'
 
 interface ContentCardProps {
   entry: ContentEntry
   onDelete: (id: string) => void
   onView: (entry: ContentEntry) => void
+  onGenerateNotes?: (entryId: string, detailLevel: 'brief' | 'detailed' | 'bullets') => Promise<void>
+  notesLoading?: boolean
 }
 
 export const ContentCard: React.FC<ContentCardProps> = ({
   entry,
   onDelete,
   onView,
+  onGenerateNotes,
+  notesLoading = false,
 }) => {
+  const hasNotes = !!entry.metadata?.studyNotes
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -28,6 +35,12 @@ export const ContentCard: React.FC<ContentCardProps> = ({
     return text.substring(0, maxLength) + '...'
   }
 
+  const handleGenerateNotes = async () => {
+    if (onGenerateNotes) {
+      await onGenerateNotes(entry.id, 'detailed')
+    }
+  }
+
   return (
     <div className="content-card" id={`entry-${entry.id}`}>
       <div className="content-card-header">
@@ -35,6 +48,16 @@ export const ContentCard: React.FC<ContentCardProps> = ({
           {truncateText(entry.title, 60)}
         </h3>
         <div className="content-card-actions">
+          {onGenerateNotes && (
+            <button
+              className="btn-icon generate-notes-header-btn"
+              onClick={handleGenerateNotes}
+              disabled={notesLoading}
+              title={hasNotes ? "Regenerate study notes" : "Generate study notes"}
+            >
+              <Sparkles size={16} className={notesLoading ? 'spinning' : ''} />
+            </button>
+          )}
           <button
             className="btn-icon"
             onClick={() => onView(entry)}
@@ -98,6 +121,14 @@ export const ContentCard: React.FC<ContentCardProps> = ({
           )}
         </div>
       </div>
+
+      {hasNotes && entry.metadata?.studyNotes && (
+        <div className="content-card-notes">
+          <StudyNotes
+            studyNotes={entry.metadata.studyNotes}
+          />
+        </div>
+      )}
 
       <div className="content-card-footer">
         <div className="content-card-meta">

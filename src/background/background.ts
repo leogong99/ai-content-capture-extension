@@ -1,6 +1,6 @@
 import { storageService } from '@/services/storage'
 import { aiService } from '@/services/ai'
-import { ContentEntry, CaptureRequest, ExtensionSettings } from '@/types'
+import { ContentEntry, CaptureRequest, ExtensionSettings, DuplicateMatch } from '@/types'
 import { isRestrictedPage, getRestrictedPageErrorMessage } from '@/utils/url'
 
 // Initialize storage on startup (service workers can restart)
@@ -145,7 +145,16 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       switch (request.action) {
         case 'captureContent': {
           const result = await processCaptureRequest(request.data)
-          sendResponse({ success: true, data: result })
+          // Check if result includes duplicates
+          if (result && typeof result === 'object' && 'duplicates' in result) {
+            sendResponse({ 
+              success: true, 
+              data: result,
+              hasDuplicates: true 
+            })
+          } else {
+            sendResponse({ success: true, data: result })
+          }
           break
         }
 
@@ -380,6 +389,58 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           break
         }
 
+        case 'checkDuplicates': {
+          try {
+            const { entry } = request
+            if (!entry) {
+              sendResponse({ success: false, error: 'Entry is required' })
+              break
+            }
+            const duplicates = await storageService.findPotentialDuplicates(entry)
+            sendResponse({ success: true, data: duplicates })
+          } catch (error) {
+            console.error('Check duplicates failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error ? error.message : 'Check duplicates failed',
+            })
+          }
+          break
+        }
+
+        case 'mergeEntries': {
+          try {
+            const { sourceId, targetId } = request
+            if (!sourceId || !targetId) {
+              sendResponse({ success: false, error: 'Source and target IDs are required' })
+              break
+            }
+            const mergedEntry = await storageService.mergeEntries(sourceId, targetId)
+            
+            // Invalidate omnibox cache
+            recentEntriesCache = []
+            cacheTimestamp = 0
+            
+            // Notify about merge
+            chrome.runtime
+              .sendMessage({ action: 'entriesMerged', data: { mergedEntry, sourceId, targetId } })
+              .catch(() => {
+                // No listener available, this is normal
+              })
+            
+            sendResponse({ success: true, data: mergedEntry })
+          } catch (error) {
+            console.error('Merge entries failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error ? error.message : 'Merge entries failed',
+            })
+          }
+          break
+        }
+
         case 'getUserAgreement': {
           try {
             const agreement = await storageService.getUserAgreement()
@@ -409,6 +470,60 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
                 error instanceof Error
                   ? error.message
                   : 'Set user agreement failed',
+            })
+          }
+          break
+        }
+
+        case 'generateStudyNotes': {
+          try {
+            const { entryId, detailLevel = 'detailed' } = request
+            if (!entryId) {
+              sendResponse({ success: false, error: 'Entry ID is required' })
+              break
+            }
+
+            // Get the entry
+            const entry = await storageService.getEntry(entryId)
+            if (!entry) {
+              sendResponse({ success: false, error: 'Entry not found' })
+              break
+            }
+
+            // Get AI settings
+            const settings = await getSettings()
+            await aiService.init(settings.ai)
+
+            // Generate study notes
+            // Note: This will use local processing in service worker context
+            // For OpenAI, the UI components should call this directly
+            const studyNotes = await aiService.generateStudyNotes(
+              entry.content,
+              entry.type,
+              detailLevel
+            )
+
+            // Update entry with study notes
+            const updatedEntry: ContentEntry = {
+              ...entry,
+              metadata: {
+                ...entry.metadata,
+                studyNotes,
+              },
+            }
+
+            // Save updated entry
+            await storageService.saveEntry(updatedEntry)
+
+            sendResponse({ success: true, data: studyNotes })
+          } catch (error) {
+            console.error('Generate study notes failed:', error)
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Generate study notes failed',
             })
           }
           break
@@ -594,7 +709,7 @@ async function capturePage(tabId: number): Promise<void> {
 
 async function processCaptureRequest(
   request: CaptureRequest
-): Promise<ContentEntry> {
+): Promise<ContentEntry | { entry: ContentEntry; duplicates: DuplicateMatch[] }> {
   // For page captures, use page title as summary and headers as content
   let summary = request.content.substring(0, 100) + (request.content.length > 100 ? '...' : '')
   let content = request.content
@@ -632,7 +747,55 @@ async function processCaptureRequest(
     })
   }
 
-  // Save to storage
+  // Check for duplicates before saving
+  const settings = await getSettings()
+  const duplicateConfig = settings.duplicateDetection
+
+  if (duplicateConfig?.enabled && duplicateConfig?.checkOnSave) {
+    const duplicates = await storageService.findPotentialDuplicates(entry)
+
+    if (duplicates.length > 0) {
+      // Check for exact duplicates
+      const exactDuplicates = duplicates.filter(d => d.matchType === 'exact')
+
+      if (exactDuplicates.length > 0 && duplicateConfig.autoBlockExact) {
+        // Auto-block exact duplicates
+        console.log('Exact duplicate detected, blocking save:', exactDuplicates[0].entry.id)
+        
+        // Show notification
+        await chrome.notifications.create({
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+          title: 'Duplicate Content Detected',
+          message: 'This content has already been captured. Duplicate save blocked.',
+        })
+
+        // Return the existing entry instead of creating a new one
+        return exactDuplicates[0].entry
+      }
+
+      // Near-duplicates found - return entry with duplicates for UI to handle
+      console.log('Near-duplicates detected:', duplicates.length)
+      
+      // Notify sidepanel about duplicates
+      chrome.runtime
+        .sendMessage({ 
+          action: 'contentCaptured', 
+          data: { entry, duplicates },
+          hasDuplicates: true 
+        })
+        .then(() => {
+          console.log('Duplicate detection notification sent successfully')
+        })
+        .catch(() => {
+          // No listener available, this is normal if sidepanel/popup is not open
+        })
+      
+      return { entry, duplicates }
+    }
+  }
+
+  // No duplicates or duplicate detection disabled - save normally
   await storageService.saveEntry(entry)
 
   // Invalidate omnibox cache
@@ -678,6 +841,12 @@ async function getSettings(): Promise<ExtensionSettings> {
       enabled: true,
       maxSuggestions: 8,
     },
+    duplicateDetection: {
+      enabled: true,
+      autoBlockExact: true,
+      similarityThreshold: 0.8,
+      checkOnSave: true,
+    },
   }
 
   const stored = await storageService.getConfig('settings')
@@ -685,6 +854,7 @@ async function getSettings(): Promise<ExtensionSettings> {
     // Merge with defaults to ensure new fields are added
     const storedSettings = stored as ExtensionSettings
     const defaultOmnibox = defaultSettings.omnibox!
+    const defaultDuplicateDetection = defaultSettings.duplicateDetection!
     return {
       ...defaultSettings,
       ...storedSettings,
@@ -692,6 +862,12 @@ async function getSettings(): Promise<ExtensionSettings> {
         keyword: storedSettings.omnibox?.keyword || defaultOmnibox.keyword,
         enabled: storedSettings.omnibox?.enabled ?? defaultOmnibox.enabled,
         maxSuggestions: storedSettings.omnibox?.maxSuggestions || defaultOmnibox.maxSuggestions,
+      },
+      duplicateDetection: {
+        enabled: storedSettings.duplicateDetection?.enabled ?? defaultDuplicateDetection.enabled,
+        autoBlockExact: storedSettings.duplicateDetection?.autoBlockExact ?? defaultDuplicateDetection.autoBlockExact,
+        similarityThreshold: storedSettings.duplicateDetection?.similarityThreshold ?? defaultDuplicateDetection.similarityThreshold,
+        checkOnSave: storedSettings.duplicateDetection?.checkOnSave ?? defaultDuplicateDetection.checkOnSave,
       },
     }
   }

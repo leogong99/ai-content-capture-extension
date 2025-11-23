@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ContentEntry, SearchFilters, UserAgreement } from '@/types'
+import { ContentEntry, SearchFilters, UserAgreement, DuplicateMatch } from '@/types'
 import { ContentCard } from '@/components/ContentCard'
 import { SearchBar } from '@/components/SearchBar'
 import { CaptureButton } from '@/components/CaptureButton'
 import UserAgreementComponent from '@/components/UserAgreement'
+import { DuplicateWarning } from '@/components/DuplicateWarning'
 import { aiService } from '@/services/ai'
 import {
   Settings,
@@ -30,6 +31,12 @@ export const SidePanel: React.FC = () => {
   const [hasMore, setHasMore] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    entry: ContentEntry
+    duplicates: DuplicateMatch[]
+  } | null>(null)
+  const [generatingNotesFor, setGeneratingNotesFor] = useState<string | null>(null)
+  const [isOpenAIConfigured, setIsOpenAIConfigured] = useState(false)
 
   const loadEntries = useCallback(async (page: number = 1, append: boolean = false) => {
     try {
@@ -235,16 +242,53 @@ export const SidePanel: React.FC = () => {
   useEffect(() => {
     loadEntries()
     checkUserAgreement()
+    checkOpenAIConfiguration()
   }, [loadEntries])
+
+  const checkOpenAIConfiguration = useCallback(async () => {
+    try {
+      const settingsResponse = await chrome.runtime.sendMessage({
+        action: 'getSettings'
+      })
+      
+      if (settingsResponse?.success) {
+        const settings = settingsResponse.data
+        // Hide button if provider is 'local', show only if OpenAI is properly configured
+        const isConfigured = settings.ai.provider === 'local'
+          ? false
+          : (settings.ai.provider === 'openai' && 
+             settings.ai.apiKey && 
+             settings.ai.enabled)
+        setIsOpenAIConfigured(isConfigured)
+      }
+    } catch (error) {
+      console.error('Failed to check OpenAI configuration:', error)
+      setIsOpenAIConfigured(false)
+    }
+  }, [])
 
   useEffect(() => {
     // Listen for new captures to update the dashboard live
-    const handleMessage = async (message: { action: string; data?: ContentEntry; entryId?: string; query?: string }) => {
+    const handleMessage = async (message: { 
+      action: string
+      data?: ContentEntry | { entry: ContentEntry; duplicates: DuplicateMatch[] }
+      entryId?: string
+      query?: string
+      hasDuplicates?: boolean
+    }) => {
       console.log('Sidepanel: Received message:', message.action)
       
       if (message.action === 'contentCaptured') {
         console.log('Sidepanel: New content captured, refreshing...')
-        const newEntry = message.data
+        
+        // Check if there are duplicates
+        if (message.hasDuplicates && message.data && 'duplicates' in message.data) {
+          const { entry, duplicates } = message.data as { entry: ContentEntry; duplicates: DuplicateMatch[] }
+          setDuplicateWarning({ entry, duplicates })
+          return
+        }
+        
+        const newEntry = message.data as ContentEntry
         
         // Reload entries to get the latest data
         await loadEntries()
@@ -253,6 +297,10 @@ export const SidePanel: React.FC = () => {
         if (newEntry) {
           await autoEnhanceNewEntry(newEntry)
         }
+      } else if (message.action === 'entriesMerged') {
+        // Reload entries after merge
+        await loadEntries()
+        setDuplicateWarning(null)
       } else if (message.action === 'navigateToEntry') {
         // Handle navigation from omnibox
         console.log('Sidepanel: Navigating to entry:', message.entryId)
@@ -377,6 +425,130 @@ export const SidePanel: React.FC = () => {
     }
   }
 
+  const handleMerge = async (targetId: string) => {
+    if (!duplicateWarning) return
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'mergeEntries',
+        sourceId: duplicateWarning.entry.id,
+        targetId: targetId,
+      })
+
+      if (response.success) {
+        await loadEntries()
+        setDuplicateWarning(null)
+      } else {
+        alert(response.error || 'Failed to merge entries')
+      }
+    } catch (error) {
+      console.error('Merge failed:', error)
+      alert('Failed to merge entries')
+    }
+  }
+
+  const handleSaveAnyway = async () => {
+    if (!duplicateWarning) return
+
+    try {
+      // Save the entry anyway
+      await chrome.runtime.sendMessage({
+        action: 'saveEntry',
+        entry: duplicateWarning.entry,
+      })
+
+      await loadEntries()
+      setDuplicateWarning(null)
+    } catch (error) {
+      console.error('Save anyway failed:', error)
+      alert('Failed to save entry')
+    }
+  }
+
+  const handleCancelDuplicate = () => {
+    setDuplicateWarning(null)
+  }
+
+  const handleGenerateNotes = useCallback(async (
+    entryId: string,
+    detailLevel: 'brief' | 'detailed' | 'bullets'
+  ) => {
+    try {
+      setGeneratingNotesFor(entryId)
+      
+      // Get AI settings
+      const settingsResponse = await chrome.runtime.sendMessage({
+        action: 'getSettings'
+      })
+      
+      if (settingsResponse?.success) {
+        const settings = settingsResponse.data
+        
+        // Try to use OpenAI directly in UI context if available
+        if (settings.ai.provider === 'openai' && settings.ai.apiKey && settings.ai.enabled) {
+          // Get the entry
+          const entryResponse = await chrome.runtime.sendMessage({
+            action: 'getEntry',
+            id: entryId
+          })
+          
+          if (entryResponse.success && entryResponse.data) {
+            const entry = entryResponse.data as ContentEntry
+            
+            // Initialize AI service in UI context
+            await aiService.init(settings.ai)
+            
+            // Generate notes using OpenAI (runs in UI context)
+            const studyNotes = await aiService.generateStudyNotes(
+              entry.content,
+              entry.type,
+              detailLevel
+            )
+            
+            // Update entry with study notes
+            const updatedEntry: ContentEntry = {
+              ...entry,
+              metadata: {
+                ...entry.metadata,
+                studyNotes,
+              },
+            }
+            
+            // Save updated entry
+            await chrome.runtime.sendMessage({
+              action: 'saveEntry',
+              entry: updatedEntry
+            })
+            
+            // Update local state
+            setEntries(prev => prev.map(e => e.id === entryId ? updatedEntry : e))
+            setFilteredEntries(prev => prev.map(e => e.id === entryId ? updatedEntry : e))
+          }
+        } else {
+          // Use background script for local processing
+          const response = await chrome.runtime.sendMessage({
+            action: 'generateStudyNotes',
+            entryId,
+            detailLevel,
+          })
+          
+          if (response.success) {
+            // Reload entries to get updated data
+            await loadEntries()
+          } else {
+            console.error('Failed to generate study notes:', response.error)
+            alert(response.error || 'Failed to generate study notes')
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to generate study notes:', error)
+      alert('Failed to generate study notes')
+    } finally {
+      setGeneratingNotesFor(null)
+    }
+  }, [loadEntries])
+
   const handleExport = async () => {
     try {
       const response = await chrome.runtime.sendMessage({
@@ -464,6 +636,18 @@ export const SidePanel: React.FC = () => {
         onAgree={handleAgreementAgree}
         showAsModal={true}
       />
+
+      {duplicateWarning && (
+        <div className="duplicate-warning-overlay">
+          <DuplicateWarning
+            newEntry={duplicateWarning.entry}
+            duplicates={duplicateWarning.duplicates}
+            onMerge={handleMerge}
+            onSaveAnyway={handleSaveAnyway}
+            onCancel={handleCancelDuplicate}
+          />
+        </div>
+      )}
 
       <div className="sidepanel-header">
         <h1>Content Dashboard</h1>
@@ -587,6 +771,8 @@ export const SidePanel: React.FC = () => {
                   entry={entry}
                   onDelete={handleDelete}
                   onView={handleView}
+                  onGenerateNotes={isOpenAIConfigured ? handleGenerateNotes : undefined}
+                  notesLoading={generatingNotesFor === entry.id}
                 />
               ))}
 
@@ -603,16 +789,15 @@ export const SidePanel: React.FC = () => {
                   </button>
                 </div>
               )}
-
-              {totalCount > 0 && (
-                <div className="pagination-info">
-                  Showing {displayEntries.length} of {totalCount} entries
-                </div>
-              )}
             </>
           )}
         </div>
       </div>
+      {totalCount > 0 && (
+        <div className="pagination-info">
+          Showing {displayEntries.length} of {totalCount} entries
+        </div>
+      )}
     </div>
   )
 }

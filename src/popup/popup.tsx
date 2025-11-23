@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ContentEntry, SearchFilters } from '@/types'
+import { ContentEntry, SearchFilters, DuplicateMatch } from '@/types'
 import { ContentCard } from '@/components/ContentCard'
 import { CaptureButton } from '@/components/CaptureButton'
 import { SearchBar } from '@/components/SearchBar'
+import { DuplicateWarning } from '@/components/DuplicateWarning'
 import { aiService } from '@/services/ai'
 import { History, Plus, Settings } from 'lucide-react'
 
@@ -12,15 +13,34 @@ export const Popup: React.FC = () => {
   const [filteredEntries, setFilteredEntries] = useState<ContentEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'capture' | 'history'>('capture')
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    entry: ContentEntry
+    duplicates: DuplicateMatch[]
+  } | null>(null)
+  const [generatingNotesFor, setGeneratingNotesFor] = useState<string | null>(null)
+  const [isOpenAIConfigured, setIsOpenAIConfigured] = useState(false)
 
   useEffect(() => {
     loadEntries()
+    checkOpenAIConfiguration()
 
     // Listen for new captures to update the popup live
-    const handleMessage = async (message: { action: string; data?: ContentEntry }) => {
+    const handleMessage = async (message: { 
+      action: string
+      data?: ContentEntry | { entry: ContentEntry; duplicates: DuplicateMatch[] }
+      hasDuplicates?: boolean
+    }) => {
       if (message.action === 'contentCaptured') {
         console.log('Popup: New content captured, refreshing...')
-        const newEntry = message.data
+        
+        // Check if there are duplicates
+        if (message.hasDuplicates && message.data && 'duplicates' in message.data) {
+          const { entry, duplicates } = message.data as { entry: ContentEntry; duplicates: DuplicateMatch[] }
+          setDuplicateWarning({ entry, duplicates })
+          return
+        }
+        
+        const newEntry = message.data as ContentEntry
         
         // Reload entries to get the latest data
         await loadEntries()
@@ -29,6 +49,10 @@ export const Popup: React.FC = () => {
         if (newEntry) {
           await autoEnhanceNewEntry(newEntry)
         }
+      } else if (message.action === 'entriesMerged') {
+        // Reload entries after merge
+        await loadEntries()
+        setDuplicateWarning(null)
       }
     }
 
@@ -108,6 +132,28 @@ export const Popup: React.FC = () => {
     setFilteredEntries(entries)
   }
 
+  const checkOpenAIConfiguration = async () => {
+    try {
+      const settingsResponse = await chrome.runtime.sendMessage({
+        action: 'getSettings'
+      })
+      
+      if (settingsResponse?.success) {
+        const settings = settingsResponse.data
+        // Hide button if provider is 'local', show only if OpenAI is properly configured
+        const isConfigured = settings.ai.provider === 'local'
+          ? false
+          : (settings.ai.provider === 'openai' && 
+             settings.ai.apiKey && 
+             settings.ai.enabled)
+        setIsOpenAIConfigured(isConfigured)
+      }
+    } catch (error) {
+      console.error('Failed to check OpenAI configuration:', error)
+      setIsOpenAIConfigured(false)
+    }
+  }
+
   const handleDelete = async (id: string) => {
     try {
       await chrome.runtime.sendMessage({ action: 'deleteEntry', id })
@@ -178,6 +224,130 @@ export const Popup: React.FC = () => {
     chrome.runtime.openOptionsPage()
   }
 
+  const handleMerge = async (targetId: string) => {
+    if (!duplicateWarning) return
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'mergeEntries',
+        sourceId: duplicateWarning.entry.id,
+        targetId: targetId,
+      })
+
+      if (response.success) {
+        await loadEntries()
+        setDuplicateWarning(null)
+      } else {
+        alert(response.error || 'Failed to merge entries')
+      }
+    } catch (error) {
+      console.error('Merge failed:', error)
+      alert('Failed to merge entries')
+    }
+  }
+
+  const handleSaveAnyway = async () => {
+    if (!duplicateWarning) return
+
+    try {
+      // Save the entry anyway
+      await chrome.runtime.sendMessage({
+        action: 'saveEntry',
+        entry: duplicateWarning.entry,
+      })
+
+      await loadEntries()
+      setDuplicateWarning(null)
+    } catch (error) {
+      console.error('Save anyway failed:', error)
+      alert('Failed to save entry')
+    }
+  }
+
+  const handleCancelDuplicate = () => {
+    setDuplicateWarning(null)
+  }
+
+  const handleGenerateNotes = async (
+    entryId: string,
+    detailLevel: 'brief' | 'detailed' | 'bullets'
+  ) => {
+    try {
+      setGeneratingNotesFor(entryId)
+      
+      // Get AI settings
+      const settingsResponse = await chrome.runtime.sendMessage({
+        action: 'getSettings'
+      })
+      
+      if (settingsResponse?.success) {
+        const settings = settingsResponse.data
+        
+        // Try to use OpenAI directly in UI context if available
+        if (settings.ai.provider === 'openai' && settings.ai.apiKey && settings.ai.enabled) {
+          // Get the entry
+          const entryResponse = await chrome.runtime.sendMessage({
+            action: 'getEntry',
+            id: entryId
+          })
+          
+          if (entryResponse.success && entryResponse.data) {
+            const entry = entryResponse.data as ContentEntry
+            
+            // Initialize AI service in UI context
+            await aiService.init(settings.ai)
+            
+            // Generate notes using OpenAI (runs in UI context)
+            const studyNotes = await aiService.generateStudyNotes(
+              entry.content,
+              entry.type,
+              detailLevel
+            )
+            
+            // Update entry with study notes
+            const updatedEntry: ContentEntry = {
+              ...entry,
+              metadata: {
+                ...entry.metadata,
+                studyNotes,
+              },
+            }
+            
+            // Save updated entry
+            await chrome.runtime.sendMessage({
+              action: 'saveEntry',
+              entry: updatedEntry
+            })
+            
+            // Update local state
+            setEntries(prev => prev.map(e => e.id === entryId ? updatedEntry : e))
+            setFilteredEntries(prev => prev.map(e => e.id === entryId ? updatedEntry : e))
+          }
+        } else {
+          // Use background script for local processing
+          const response = await chrome.runtime.sendMessage({
+            action: 'generateStudyNotes',
+            entryId,
+            detailLevel,
+          })
+          
+          if (response.success) {
+            // Reload entries to get updated data
+            await loadEntries()
+          } else {
+            console.error('Failed to generate study notes:', response.error)
+            alert(response.error || 'Failed to generate study notes')
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to generate study notes:', error)
+      alert('Failed to generate study notes')
+    } finally {
+      setGeneratingNotesFor(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="popup-container">
@@ -188,6 +358,18 @@ export const Popup: React.FC = () => {
 
   return (
     <div className="popup-container">
+      {duplicateWarning && (
+        <div className="duplicate-warning-overlay">
+          <DuplicateWarning
+            newEntry={duplicateWarning.entry}
+            duplicates={duplicateWarning.duplicates}
+            onMerge={handleMerge}
+            onSaveAnyway={handleSaveAnyway}
+            onCancel={handleCancelDuplicate}
+          />
+        </div>
+      )}
+
       <div className="popup-header">
         <h1>AI Content Capture</h1>
         <div className="header-actions">
@@ -250,6 +432,8 @@ export const Popup: React.FC = () => {
                     entry={entry}
                     onDelete={handleDelete}
                     onView={handleView}
+                    onGenerateNotes={isOpenAIConfigured ? handleGenerateNotes : undefined}
+                    notesLoading={generatingNotesFor === entry.id}
                   />
                 ))
               )}

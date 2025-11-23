@@ -1,5 +1,6 @@
-import { ContentEntry, UserAgreement, ExtensionSettings } from '@/types'
+import { ContentEntry, UserAgreement, ExtensionSettings, DuplicateMatch } from '@/types'
 import { performanceMonitor, measureAsyncOperation } from '@/utils/performance'
+import { similarityService } from './similarity'
 
 const DB_NAME = 'AIContentCapture'
 const DB_VERSION = 1
@@ -858,6 +859,107 @@ class StorageService {
         }
       })
     }
+  }
+
+  /**
+   * Find potential duplicates for a new entry
+   */
+  async findPotentialDuplicates(
+    entry: ContentEntry,
+    threshold?: number
+  ): Promise<DuplicateMatch[]> {
+    if (!this.db) await this.init()
+
+    // Get settings to determine threshold
+    const settings = await this.getConfig('settings') as ExtensionSettings | null
+    const duplicateConfig = settings?.duplicateDetection
+    const similarityThreshold = threshold ?? duplicateConfig?.similarityThreshold ?? 0.8
+
+    // Get all existing entries
+    const allEntries = await this.getAllEntries()
+
+    // Use similarity service to find duplicates
+    return similarityService.findDuplicates(entry, allEntries, similarityThreshold)
+  }
+
+  /**
+   * Merge two entries intelligently
+   * @param sourceId - ID of entry to merge from (will be deleted)
+   * @param targetId - ID of entry to merge into (will be kept)
+   */
+  async mergeEntries(sourceId: string, targetId: string): Promise<ContentEntry> {
+    if (!this.db) await this.init()
+
+    // Get both entries
+    const source = await this.getEntry(sourceId)
+    const target = await this.getEntry(targetId)
+
+    if (!source) {
+      throw new Error(`Source entry ${sourceId} not found`)
+    }
+    if (!target) {
+      throw new Error(`Target entry ${targetId} not found`)
+    }
+
+    // Merge strategy:
+    // - Keep target's ID, URL, type
+    // - Use earliest createdAt
+    // - Combine tags (unique)
+    // - Combine summaries (if different, append)
+    // - Merge metadata intelligently
+    // - Keep longer content if different
+
+    const mergedEntry: ContentEntry = {
+      id: target.id, // Keep target ID
+      title: target.title || source.title, // Prefer target title
+      url: target.url, // Keep target URL
+      type: target.type, // Keep target type
+      createdAt: new Date(source.createdAt) < new Date(target.createdAt)
+        ? source.createdAt
+        : target.createdAt, // Earliest date
+      // Combine tags (unique)
+      tags: [
+        ...new Set([...target.tags, ...source.tags])
+      ],
+      // Combine summaries if different
+      summary: target.summary === source.summary
+        ? target.summary
+        : `${target.summary}\n\n${source.summary}`,
+      // Keep category from target, or source if target doesn't have one
+      category: target.category || source.category,
+      // Keep longer content
+      content: target.content.length >= source.content.length
+        ? target.content
+        : source.content,
+      // Merge metadata
+      metadata: {
+        ...source.metadata,
+        ...target.metadata,
+        // Preserve both page titles if different
+        pageTitle: target.metadata?.pageTitle || source.metadata?.pageTitle,
+        // Preserve both selection texts if different
+        selectionText: target.metadata?.selectionText || source.metadata?.selectionText,
+        // Preserve both headers
+        headers: [
+          ...(target.metadata?.headers || []),
+          ...(source.metadata?.headers || [])
+        ].filter((v, i, a) => a.indexOf(v) === i), // Unique headers
+        headersText: [
+          target.metadata?.headersText,
+          source.metadata?.headersText
+        ].filter(Boolean).join('\n\n'),
+        // Preserve study notes from target, or source if target doesn't have any
+        studyNotes: target.metadata?.studyNotes || source.metadata?.studyNotes,
+      },
+    }
+
+    // Save merged entry
+    await this.saveEntry(mergedEntry)
+
+    // Delete source entry
+    await this.deleteEntry(sourceId)
+
+    return mergedEntry
   }
 }
 

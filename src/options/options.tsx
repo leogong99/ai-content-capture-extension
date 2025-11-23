@@ -5,6 +5,7 @@ import {
   AIConfig,
   StorageConfig,
   UserAgreement,
+  DuplicateDetectionConfig,
 } from '@/types'
 import UserAgreementComponent from '@/components/UserAgreement'
 import {
@@ -19,6 +20,7 @@ import {
   CheckCircle,
   AlertCircle,
   Shield,
+  Copy,
 } from 'lucide-react'
 
 export const Options: React.FC = () => {
@@ -36,6 +38,12 @@ export const Options: React.FC = () => {
     userAgreement: {
       hasAgreed: false,
       version: '1.0',
+    },
+    duplicateDetection: {
+      enabled: true,
+      autoBlockExact: true,
+      similarityThreshold: 0.8,
+      checkOnSave: true,
     },
   })
   const [loading, setLoading] = useState(true)
@@ -97,6 +105,12 @@ export const Options: React.FC = () => {
           hasAgreed: false,
           version: '1.0',
         },
+        duplicateDetection: {
+          enabled: true,
+          autoBlockExact: true,
+          similarityThreshold: 0.8,
+          checkOnSave: true,
+        },
       })
     }
   }
@@ -139,6 +153,21 @@ export const Options: React.FC = () => {
     setSettings(prev => ({
       ...prev,
       storage: { ...prev.storage, ...updates },
+    }))
+  }
+
+  const updateDuplicateDetectionSettings = (updates: Partial<DuplicateDetectionConfig>) => {
+    setSettings(prev => ({
+      ...prev,
+      duplicateDetection: {
+        ...(prev.duplicateDetection || {
+          enabled: true,
+          autoBlockExact: true,
+          similarityThreshold: 0.8,
+          checkOnSave: true,
+        }),
+        ...updates,
+      },
     }))
   }
 
@@ -430,6 +459,88 @@ export const Options: React.FC = () => {
                 settings.
               </p>
             </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="section-header">
+            <Copy size={20} />
+            <h2>Duplicate Detection</h2>
+          </div>
+          <div className="section-content">
+            <div className="setting-group">
+              <label className="setting-label">
+                <input
+                  type="checkbox"
+                  checked={settings.duplicateDetection?.enabled ?? true}
+                  onChange={e =>
+                    updateDuplicateDetectionSettings({ enabled: e.target.checked })
+                  }
+                />
+                <span>Enable duplicate detection</span>
+              </label>
+              <p className="setting-description">
+                Automatically detect and prevent duplicate captures. When enabled, the extension will check for similar content before saving.
+              </p>
+            </div>
+
+            {settings.duplicateDetection?.enabled && (
+              <>
+                <div className="setting-group">
+                  <label className="setting-label">
+                    <input
+                      type="checkbox"
+                      checked={settings.duplicateDetection?.autoBlockExact ?? true}
+                      onChange={e =>
+                        updateDuplicateDetectionSettings({ autoBlockExact: e.target.checked })
+                      }
+                    />
+                    <span>Auto-block exact duplicates</span>
+                  </label>
+                  <p className="setting-description">
+                    Automatically prevent saving exact duplicates without asking. If disabled, you'll be prompted to merge or save anyway.
+                  </p>
+                </div>
+
+                <div className="setting-group">
+                  <label className="setting-label">
+                    <input
+                      type="checkbox"
+                      checked={settings.duplicateDetection?.checkOnSave ?? true}
+                      onChange={e =>
+                        updateDuplicateDetectionSettings({ checkOnSave: e.target.checked })
+                      }
+                    />
+                    <span>Check for duplicates on save</span>
+                  </label>
+                  <p className="setting-description">
+                    Check for duplicates automatically when capturing content. If disabled, you can still check manually.
+                  </p>
+                </div>
+
+                <div className="setting-group">
+                  <label className="setting-label">
+                    Similarity Threshold: {Math.round((settings.duplicateDetection?.similarityThreshold ?? 0.8) * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="1.0"
+                    step="0.05"
+                    value={settings.duplicateDetection?.similarityThreshold ?? 0.8}
+                    onChange={e =>
+                      updateDuplicateDetectionSettings({
+                        similarityThreshold: parseFloat(e.target.value),
+                      })
+                    }
+                    className="slider"
+                  />
+                  <p className="setting-description">
+                    Adjust how similar content needs to be to be considered a duplicate. Higher values (closer to 100%) require more similarity.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
